@@ -8,8 +8,7 @@ const setNHAIData = (data) => {
   nhaiData = data;
 };
 
-router.post('/calculate', (req, res) => {
-  // Pass NHAI data to the controller
+router.post('/calculate-toll', (req, res) => {
   getTollData(req, res, nhaiData);
 });
 

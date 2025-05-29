@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { useRoute } from '../context/RouteContext';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const navigate = useNavigate();
+
+
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -13,10 +16,15 @@ export default function Auth() {
   });
 
   const [otp, setOtp] = useState('');
-  const backendUrl = 'http://localhost:5001';
+  const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+
+  const {isLoading, setIsLoading} = useRoute();
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
+
     try {
       const res = await fetch(`${backendUrl}/api/auth/login`, {
         method: 'POST',
@@ -39,11 +47,14 @@ export default function Auth() {
     } catch (err) {
       console.error(err);
       toast.error('Error logging in');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSignup = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
     if (form.password !== form.confirmPassword) {
       toast.error("Passwords don't match");
       return;
@@ -63,10 +74,13 @@ export default function Auth() {
     } catch (err) {
       console.error(err);
       toast.error('Error signing up');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleVerifyOtp = async () => {
+    setIsLoading(true);
     try {
       const res = await fetch(`${backendUrl}/api/auth/verify`, {
         method: 'POST',
@@ -85,12 +99,24 @@ export default function Auth() {
     } catch (err) {
       console.error(err);
       toast.error('Error verifying OTP');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // *** Return JSX must be inside component function ***
   return (
     <div className="min-h-screen flex">
+      {/* Loading overlay */}
+      {isLoading && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="text-white text-center font-semibold">
+          <h1 className="text-lg mb-2">Loading Data...</h1>
+          <p className="mb-4">Please wait while the data is loading.</p>
+          <img src="/newpreeload.gif" alt="Loading..." className="w-12 h-12 mx-auto" />
+        </div>
+      </div>
+    )}
       {/* Left Side - Image */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-r from-primary-600 to-primary-800 p-12">
         <div className="w-full flex flex-col justify-between">

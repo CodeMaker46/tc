@@ -8,7 +8,7 @@ const Header = () => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    console.log("yiu",token) 
+    console.log("token : ",token) 
     setIsLoggedIn(!!token);
   }, []);
 

@@ -49,15 +49,15 @@ const getBoundingBoxWithBuffer = (pointA, pointB, bufferKm = 1) => {
   return [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)];
 };
 
-// Haversine distance calculation
-const haversineDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // km
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+const parseDuration = (durationStr) => {
+  let totalHours = 0;
+  const dayMatch = durationStr.match(/(\d+)\s*day/);
+  const hourMatch = durationStr.match(/(\d+)\s*hour/);
+
+  if (dayMatch) totalHours += parseInt(dayMatch[1], 10) * 24;
+  if (hourMatch) totalHours += parseInt(hourMatch[1], 10);
+
+  return totalHours;
 };
 
 // Check if a point is inside a bounding box
@@ -78,13 +78,23 @@ const findNHAITollsInBoundingBox = (bbox, nhaiData) => {
 
 // Calculate toll rates based on vehicle type
 const getTollRate = (toll, vehicleType = 'Car') => {
-  // Default to car rate if not specified
-  if (vehicleType === 'Car') {
-    return parseFloat(toll['Car Rate Single'] || 0);
-  }
-  // Add other vehicle types as needed
-  return 0;
+  const rateKeyMap = {
+    'Car': 'Car Rate Single',
+    'Light Commercial Vehicle': 'Lcvrate Single',
+    'Bus': 'Busrate Multi',
+    'Multi-Axle Truck': 'Multiaxlerate Single',
+    'Heavy Commercial Vehicle': 'Hcm Eme Single',
+    '4 to 6 Axle Truck': 'Fourtosixexel Single',
+    '7 or More Axle Truck': 'Sevenormoreexel Single',
+  };
+
+  
+  const key = rateKeyMap[vehicleType] || 'Car Rate Single';
+
+  // Return the parsed float value or 0 if missing
+  return parseFloat(toll[key]) || 0;
 };
+
 
 const getTollData = async (req, res, nhaiData) => {
   const { origin, destination, vehicleType = 'Car' } = req.body;
@@ -180,11 +190,12 @@ const getTollData = async (req, res, nhaiData) => {
     routeResults.sort((a, b) => a.totalToll - b.totalToll);
 
     return res.json({
+      vehicleType,
       routes: routeResults,
       cheapestRoute: routeResults[0],
       fastestRoute: routeResults.reduce((fastest, route) => {
-        const currentDuration = parseInt(route.duration.replace(/\D/g, ''));
-        const fastestDuration = parseInt(fastest.duration.replace(/\D/g, ''));
+        const currentDuration = parseDuration(route.duration);
+        const fastestDuration = parseDuration(fastest.duration);
         return currentDuration < fastestDuration ? route : fastest;
       }, routeResults[0])
     });

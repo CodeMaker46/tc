@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import RouteResults from '../components/RouteResults';
 import MapContainer from '../components/MapContainer';
+import { calculateToll } from '../utils/api';
+import { useRoute } from '../context/RouteContext';
+import{ React ,useEffect} from 'react';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
 const Calculator = () => {
   const [source, setSource] = useState('');
@@ -13,12 +17,104 @@ const Calculator = () => {
   const [showVehicleNumber, setShowVehicleNumber] = useState(false);
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [translatedText, setTranslatedText] = useState('');
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (source && destination) {
-      setShowResults(true);
+  const {setRouteData ,setIsLoading,isLoading} = useRoute();
+
+
+  const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition
+  } = useSpeechRecognition();
+
+  useEffect(() => {
+    if (transcript) {
+      translateAndExtract(transcript);
     }
+  }, [transcript]);
+
+
+  const translateAndExtract = async (spokenText) => {
+    try {
+      // Google Translate API endpoint
+      const response = await fetch(
+        `https://translation.googleapis.com/language/translate/v2?key=${import.meta.env.VITE_GOOGLE_TRANSLATE_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            q: spokenText,
+            target: 'en',
+          }),
+        }
+      );
+
+      const data = await response.json();
+      const translated = data.data.translations[0].translatedText;
+      setTranslatedText(translated);
+
+      extractPlaces(translated);
+    } catch (err) {
+      console.error('Translation failed', err);
+    }
+  };
+
+  const extractPlaces = (text) => {
+  const patterns = [
+    /from\s+(.+?)\s+to\s+(.+)/i,
+    /go from\s+(.+?)\s+to\s+(.+)/i,
+    /go to\s+(.+?)\s+from\s+(.+)/i,
+    /(.+?)\s+to\s+(.+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const extractedSource = pattern.source.includes('from') ? match[1] : match[2];
+      const extractedDestination = pattern.source.includes('from') ? match[2] : match[1];
+
+      if (extractedSource && extractedDestination) {
+        setSource(extractedSource.trim());
+        setDestination(extractedDestination.trim());
+        return;
+      }
+    }
+  }
+
+  console.warn('Could not extract full route from speech');
+};
+
+
+
+  if (!browserSupportsSpeechRecognition) {
+    return <span>Your browser doesn't support speech recognition.</span>;
+  }
+  
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    console.log("source & destination & vehicleType:", source,destination, vehicleType);
+    console.log("vehicleType type:", typeof vehicleType, "value:", vehicleType);
+    console.log('source type:', typeof source, source);
+    console.log('destination type:', typeof destination, destination);
+    setIsLoading(true); 
+
+
+    try {
+      const response = await calculateToll(source,destination,vehicleType);
+      setShowResults(true);
+      setRouteData(response);
+      console.log("Response Data:", response);
+      
+    } catch (error) {
+      console.error("Error:", error);
+    }finally {
+    setIsLoading(false);       // stop loading once done
+  }
   };
 
   const addIntermediateStop = () => {
@@ -41,13 +137,35 @@ const Calculator = () => {
     // Add voice recognition logic here
   };
 
+  const handleMicClick = () => {
+  if (!listening) {
+    setIsVoiceActive(true);
+    resetTranscript();
+    SpeechRecognition.startListening({ continuous: false, language: 'hi-IN' });
+  } else {
+    setIsVoiceActive(false);
+    SpeechRecognition.stopListening();
+  }
+};
+
+
   return (
     <div className="min-h-screen bg-gray-50">
-      
+      {/* Loading overlay */}
+      {isLoading && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="text-white text-center font-semibold">
+          <h1 className="text-lg mb-2">Loading Data...</h1>
+          <p className="mb-4">Please wait while the data is loading.</p>
+          <img src="/newpreeload.gif" alt="Loading..." className="w-12 h-12 mx-auto" />
+        </div>
+      </div>
+    )}
+
 
       {showResults ? (
         /* Results View */
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 mt-8">
+        <div className="max-w-7xl mx-auto py-2 px-4 sm:px-6 lg:px-8 mt-1">
           <div className="mb-8 bg-white rounded-lg shadow-sm p-4">
             <div className="flex items-center space-x-4 text-lg">
               <div className="flex items-center space-x-3">
@@ -114,14 +232,19 @@ const Calculator = () => {
                   <h3 className="text-lg font-medium text-gray-900">Route Information</h3>
                   <button
                     type="button"
-                    onClick={toggleVoiceAssistant}
+                    onClick={handleMicClick}
                     className={`p-2 rounded-full ${
                       isVoiceActive ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
                     } hover:bg-blue-100 hover:text-blue-600 transition-colors`}
                   >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {/* <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
+                    </svg> */}
+                    <p className="text-sm text-gray-500">
+                      🎤 Detected: {translatedText} <br />
+                      Source: <strong>{source}</strong>, Destination: <strong>{destination}</strong>
+                    </p>
+
                   </button>
                 </div>
 
@@ -134,7 +257,7 @@ const Calculator = () => {
                     id="source"
                     value={source}
                     onChange={(e) => setSource(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
                     placeholder="Enter source location"
                     required
                   />
@@ -152,7 +275,7 @@ const Calculator = () => {
                         id={`stop-${index}`}
                         value={stop}
                         onChange={(e) => updateIntermediateStop(index, e.target.value)}
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
                         placeholder="Enter stop location"
                       />
                       <button
@@ -188,7 +311,7 @@ const Calculator = () => {
                     id="destination"
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
                     placeholder="Enter destination location"
                     required
                   />
@@ -207,7 +330,7 @@ const Calculator = () => {
                         type="radio"
                         id="manualOption"
                         name="vehicleDetailType"
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 "
                         checked={!showVehicleNumber}
                         onChange={() => setShowVehicleNumber(false)}
                       />
@@ -255,15 +378,19 @@ const Calculator = () => {
                         id="vehicleType"
                         value={vehicleType}
                         onChange={(e) => setVehicleType(e.target.value)}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
                       >
-                        <option value="car">Car</option>
-                        <option value="pickup">Pickup Truck</option>
-                        <option value="truck">Truck</option>
+                        <option value="Car">Car</option>
+                        <option value="Light Commercial Vehicle">Light Commercial Vehicle</option>
+                        <option value="Bus">Bus</option>
+                        <option value="Multi-Axle Truck">Multi-Axle Truck</option>
+                        <option value="Heavy Commercial Vehicle">Heavy Commercial Vehicle</option>
+                        <option value="4 to 6 Axle Truck">4 to 6 Axle Truck</option>
+                        <option value="7 or More Axle Truck">7 or More Axle Truck</option>
                       </select>
                     </div>
 
-                    {vehicleType === 'truck' && (
+                    {/* {vehicleType === 'truck' && (
                       <div>
                         <label htmlFor="axleCount" className="block text-sm font-medium text-gray-700">
                           Number of Axles
@@ -279,9 +406,9 @@ const Calculator = () => {
                           ))}
                         </select>
                       </div>
-                    )}
+                    )} */}
 
-                    <div>
+                    {/* <div>
                       <label htmlFor="fuelType" className="block text-sm font-medium text-gray-700">
                         Fuel Type
                       </label>
@@ -297,7 +424,7 @@ const Calculator = () => {
                         <option value="cng">CNG</option>
                         <option value="electric">Electric</option>
                       </select>
-                    </div>
+                    </div> */}
                   </div>
                 )}
               </div>
