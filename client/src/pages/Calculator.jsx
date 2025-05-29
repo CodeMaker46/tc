@@ -4,6 +4,8 @@ import MapContainer from '../components/MapContainer';
 import { calculateToll } from '../utils/api';
 import { useRoute } from '../context/RouteContext';
 import{ React ,useEffect} from 'react';
+const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
+
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
 const Calculator = () => {
@@ -209,12 +211,14 @@ const Calculator = () => {
                 vehicleType={vehicleType}
                 axleCount={axleCount}
                 fuelType={fuelType}
+                selectedRouteIndex={selectedRouteIndex}
+                setSelectedRouteIndex={setSelectedRouteIndex}
               />
             </div>
 
             {/* Right side - Map */}
           <div className="bg-white rounded-lg shadow-sm p-4 min-h-[600px]">
-  <MapContainer source={source} destination={destination} stops={intermediateStops} />
+  <MapContainer source={source} destination={destination} selectedRouteIndex={selectedRouteIndex} />
 </div>
 
           </div>
