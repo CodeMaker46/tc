@@ -3,25 +3,42 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import Home from './pages/Home';
 import Calculator from './pages/Calculator';
+import ForgetPassword from './components/ForgetPassword';
+import ResetPassword from './components/ResetPassword';
 import Auth from './pages/Auth';
+import PrivateRoute from './components/PrivateRoute';
+import { ToastContainer } from 'react-toastify';
 
 function App() {
   return (
     <Router>
+      <ToastContainer />
+
       <Routes>
+        {/* Public Route */}
+        <Route path="/auth" element={<Auth />} />
+
+        {/* Layout Route */}
         <Route
-          path="/auth"
-          element={<Auth />}
-        />
-        <Route
-          path="*"
+          path="/*"
           element={
             <div className="min-h-screen bg-gray-50 flex flex-col">
               <Header />
               <div className="flex-grow">
                 <Routes>
+                  {/* Home is public */}
                   <Route path="/" element={<Home />} />
-                  <Route path="/calculator" element={<Calculator />} />
+                  <Route path="/forget-password" element={<ForgetPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  {/* Protected Route */}
+                  <Route
+                    path="/calculator"
+                    element={
+                      <PrivateRoute>
+                        <Calculator />
+                      </PrivateRoute>
+                    }
+                  />
                 </Routes>
               </div>
               <Footer />

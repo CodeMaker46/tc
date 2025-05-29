@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import RouteResults from '../components/RouteResults';
+import MapContainer from '../components/MapContainer';
 
 const Calculator = () => {
   const [source, setSource] = useState('');
@@ -94,15 +95,10 @@ const Calculator = () => {
             </div>
 
             {/* Right side - Map */}
-            <div className="bg-white rounded-lg shadow-sm p-4 min-h-[600px]">
-              <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                <div className="text-6xl mb-4">🗺️</div>
-                <p className="text-center">
-                  In a complete implementation, an interactive map would be displayed here showing the route
-                  from {source} to {destination}.
-                </p>
-              </div>
-            </div>
+          <div className="bg-white rounded-lg shadow-sm p-4 min-h-[600px]">
+  <MapContainer source={source} destination={destination} stops={intermediateStops} />
+</div>
+
           </div>
         </div>
       ) : (

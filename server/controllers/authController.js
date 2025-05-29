@@ -96,7 +96,7 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-
+   //console.log('jkjkj',user);
     // Compare password with hashed password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
@@ -108,7 +108,15 @@ exports.login = async (req, res) => {
       expiresIn: '1d',
     });
 
-    return res.status(200).json({ message: 'Login successful', token });
+    return res.status(200).json({
+  message: 'Login successful',
+  token,
+  user: {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+  },
+});
   } catch (error) {
     console.error('Login error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -163,7 +171,7 @@ exports.forgotPassword = async (req, res) => {
   user.resetTokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes expiry
   await user.save();
 
-  const resetLink = `http://localhost:3000/reset-password?token=${token}&email=${email}`;
+  const resetLink = `http://localhost:5173/reset-password?token=${token}&email=${email}`;
   await transporter.sendMail({
     from: process.env.EMAIL_USER,
     to: email,
