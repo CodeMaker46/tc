@@ -1,67 +1,89 @@
-import { GoogleMap, useLoadScript, DirectionsRenderer, Marker } from '@react-google-maps/api';
+import { GoogleMap, useLoadScript, Marker, Polyline } from '@react-google-maps/api';
 import { useEffect, useState } from 'react';
+import { useRoute } from '../context/RouteContext';
 
 const containerStyle = {
   width: '100%',
   height: '100%',
 };
 
-const MapContainer = ({ source, destination }) => {
+const MapContainer = () => {
+  const {
+    routeData,
+    selectedRouteIndex,
+  } = useRoute();
+
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: ['geometry'],
   });
 
-  const [directions, setDirections] = useState(null);
-  const [sourceCoords, setSourceCoords] = useState(null);
-  const [destCoords, setDestCoords] = useState(null);
+  const [path, setPath] = useState([]);
+  const [startLoc, setStartLoc] = useState(null);
+  const [endLoc, setEndLoc] = useState(null);
 
   useEffect(() => {
-    if (!isLoaded || !source || !destination) return;
+    if (!isLoaded || !routeData?.routes || selectedRouteIndex == null) return;
 
-    const directionsService = new window.google.maps.DirectionsService();
+    const selectedRoute = routeData.routes[selectedRouteIndex];
+    if (!selectedRoute) return;
 
-    directionsService.route(
-      {
-        origin: source,
-        destination: destination,
-        travelMode: window.google.maps.TravelMode.DRIVING,
-      },
-      (result, status) => {
-        if (status === window.google.maps.DirectionsStatus.OK) {
-          setDirections(result);
-          // Save coordinates for custom markers
-          const route = result.routes[0].legs[0];
-          setSourceCoords(route.start_location);
-          setDestCoords(route.end_location);
-        } else {
-          console.error('Error fetching directions:', status);
-        }
-      }
-    );
-  }, [isLoaded, source, destination]);
+    console.log('Selected route:', selectedRoute);
 
-  if (loadError) return <div>Error loading maps</div>;
-  if (!isLoaded) return <div>Loading Maps...</div>;
+    const polylinePoints = selectedRoute?.overview_polyline?.points || selectedRoute?.polyline?.points;
+    if (!polylinePoints) {
+      console.warn('No polyline points found for the selected route.');
+      return;
+    }
+
+    if (window.google?.maps?.geometry?.encoding) {
+      const decodedPath = window.google.maps.geometry.encoding.decodePath(polylinePoints);
+      setPath(decodedPath);
+    } else {
+      console.warn('Google Maps geometry library not loaded.');
+    }
+
+    const legs = selectedRoute.legs;
+    if (legs?.length > 0) {
+      setStartLoc(legs[0].start_location);
+      setEndLoc(legs[legs.length - 1].end_location);
+    }
+
+    // Cleanup on unmount or route change
+    return () => {
+      setPath([]);
+      setStartLoc(null);
+      setEndLoc(null);
+    };
+  }, [isLoaded, routeData, selectedRouteIndex]);
+
+  if (loadError) {
+    return <div>Error loading map</div>;
+  }
+
+  if (!isLoaded) {
+    return <div>Loading map...</div>;
+  }
 
   return (
     <GoogleMap
-      mapContainerStyle={containerStyle}
-      center={sourceCoords || { lat: 20.5937, lng: 78.9629 }}
-      zoom={6}
-    >
-      {directions && (
-        <DirectionsRenderer
-          directions={directions}
-          options={{ suppressMarkers: true }}
-        />
-      )}
-      {sourceCoords && (
-        <Marker position={sourceCoords} label="S" />
-      )}
-      {destCoords && (
-        <Marker position={destCoords} label="D" />
-      )}
-    </GoogleMap>
+  mapContainerStyle={containerStyle}
+  center={startLoc || { lat: 20.5937, lng: 78.9629 }}
+  zoom={7}
+>
+  {startLoc && <Marker position={startLoc} label="S" />}
+  {endLoc && <Marker position={endLoc} label="D" />}
+  {path.length > 0 && (
+    <Polyline
+      path={path}
+      options={{
+        strokeColor: '#1976d2',
+        strokeWeight: 5,
+      }}
+    />
+  )}
+</GoogleMap>
+
   );
 };
 

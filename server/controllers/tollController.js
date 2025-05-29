@@ -118,6 +118,8 @@ const getTollData = async (req, res, nhaiData) => {
     const googleRes = await axios.get(directionsURL);
     const routes = googleRes.data.routes;
 
+    console.log("Routes : ", routes);
+
     if (!routes || routes.length === 0) {
       return res.status(404).json({ error: 'Route not found' });
     }
@@ -172,13 +174,15 @@ const getTollData = async (req, res, nhaiData) => {
         });
       }
 
-      console.log("Tolls verified for route:", routeIndex, tollsVerified);
+      // console.log("Tolls verified for route:", routeIndex, tollsVerified);
 
       // Calculate total toll for this route
       const totalToll = tollsVerified.reduce((sum, toll) => sum + toll.rate, 0);
 
       return {
         routeIndex,
+        polyline : route.overview_polyline,
+        legs : route.legs,
         distance: route.legs[0].distance.text,
         duration: route.legs[0].duration.text,
         tolls: tollsVerified,

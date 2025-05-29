@@ -4,7 +4,9 @@ import MapContainer from '../components/MapContainer';
 import { calculateToll } from '../utils/api';
 import { useRoute } from '../context/RouteContext';
 import{ React ,useEffect} from 'react';
-const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
+
+
+
 
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
@@ -24,78 +26,9 @@ const Calculator = () => {
   const {setRouteData ,setIsLoading,isLoading} = useRoute();
 
 
-  const {
-    transcript,
-    listening,
-    resetTranscript,
-    browserSupportsSpeechRecognition
-  } = useSpeechRecognition();
-
-  useEffect(() => {
-    if (transcript) {
-      translateAndExtract(transcript);
-    }
-  }, [transcript]);
-
-
-  const translateAndExtract = async (spokenText) => {
-    try {
-      // Google Translate API endpoint
-      const response = await fetch(
-        `https://translation.googleapis.com/language/translate/v2?key=${import.meta.env.VITE_GOOGLE_TRANSLATE_API_KEY}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            q: spokenText,
-            target: 'en',
-          }),
-        }
-      );
-
-      const data = await response.json();
-      const translated = data.data.translations[0].translatedText;
-      setTranslatedText(translated);
-
-      extractPlaces(translated);
-    } catch (err) {
-      console.error('Translation failed', err);
-    }
-  };
-
-  const extractPlaces = (text) => {
-  const patterns = [
-    /from\s+(.+?)\s+to\s+(.+)/i,
-    /go from\s+(.+?)\s+to\s+(.+)/i,
-    /go to\s+(.+?)\s+from\s+(.+)/i,
-    /(.+?)\s+to\s+(.+)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const extractedSource = pattern.source.includes('from') ? match[1] : match[2];
-      const extractedDestination = pattern.source.includes('from') ? match[2] : match[1];
-
-      if (extractedSource && extractedDestination) {
-        setSource(extractedSource.trim());
-        setDestination(extractedDestination.trim());
-        return;
-      }
-    }
-  }
-
-  console.warn('Could not extract full route from speech');
-};
-
-
-
-  if (!browserSupportsSpeechRecognition) {
-    return <span>Your browser doesn't support speech recognition.</span>;
-  }
   
+
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -209,16 +142,12 @@ const Calculator = () => {
                 source={source}
                 destination={destination}
                 vehicleType={vehicleType}
-                axleCount={axleCount}
-                fuelType={fuelType}
-                selectedRouteIndex={selectedRouteIndex}
-                setSelectedRouteIndex={setSelectedRouteIndex}
               />
             </div>
 
             {/* Right side - Map */}
           <div className="bg-white rounded-lg shadow-sm p-4 min-h-[600px]">
-  <MapContainer source={source} destination={destination} selectedRouteIndex={selectedRouteIndex} />
+  <MapContainer source={source} destination={destination}  />
 </div>
 
           </div>
