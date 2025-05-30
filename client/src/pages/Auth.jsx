@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useRoute } from '../context/RouteContext';
+import { auth, googleProvider } from '../config/firebase';
+import { signInWithPopup } from 'firebase/auth';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -20,6 +22,48 @@ export default function Auth() {
 
   const {isLoading, setIsLoading} = useRoute();
 
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    try {
+      console.log('Starting Google login...');
+      const result = await signInWithPopup(auth, googleProvider);
+      console.log('Google login successful:', {
+        userEmail: result.user.email,
+        userName: result.user.displayName,
+        hasIdToken: !!(await result.user.getIdToken())
+      });
+      
+      const idToken = await result.user.getIdToken();
+      
+      // Send the token to your backend
+      const res = await fetch(`${backendUrl}/api/auth/firebase-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('name', result.user.displayName || 'User');
+        toast.success('Google login successful!');
+        navigate('/');
+      } else {
+        console.error('Backend login failed:', data);
+        toast.error(data.message || 'Google login failed');
+      }
+    } catch (error) {
+      console.error('Google login error details:', {
+        code: error.code,
+        message: error.message,
+        fullError: error
+      });
+      toast.error('Error logging in with Google');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -171,6 +215,25 @@ export default function Auth() {
           </div>
 
           <div className="mt-8">
+            {/* Google Sign In Button */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full flex justify-center items-center py-3 px-4 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 mb-4"
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5 mr-2" />
+              Continue with Google
+            </button>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
             {isLogin ? (
               <form onSubmit={handleLogin} className="space-y-6">
                 <div>

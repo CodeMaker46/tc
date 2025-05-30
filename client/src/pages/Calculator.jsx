@@ -1,34 +1,50 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import RouteResults from '../components/RouteResults';
 import MapContainer from '../components/MapContainer';
 import { calculateToll } from '../utils/api';
 import { useRoute } from '../context/RouteContext';
-import{ React ,useEffect} from 'react';
-
-
-
+import{ React } from 'react';
 
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
 const Calculator = () => {
-  const [source, setSource] = useState('');
-  const [destination, setDestination] = useState('');
-  const [intermediateStops, setIntermediateStops] = useState([]);
-  const [showResults, setShowResults] = useState(false);
-  const [vehicleType, setVehicleType] = useState('car');
-  const [axleCount, setAxleCount] = useState('2');
-  const [fuelType, setFuelType] = useState('diesel');
-  const [showVehicleNumber, setShowVehicleNumber] = useState(false);
-  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [source, setSource] = useState(() => localStorage.getItem('source') || '');
+  const [destination, setDestination] = useState(() => localStorage.getItem('destination') || '');
+  const [intermediateStops, setIntermediateStops] = useState(() => {
+    const saved = localStorage.getItem('intermediateStops');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showResults, setShowResults] = useState(() => localStorage.getItem('showResults') === 'true');
+  const [vehicleType, setVehicleType] = useState(() => localStorage.getItem('vehicleType') || 'Car');
+  const [axleCount, setAxleCount] = useState(() => localStorage.getItem('axleCount') || '2');
+  const [fuelType, setFuelType] = useState(() => localStorage.getItem('fuelType') || 'diesel');
+  const [showVehicleNumber, setShowVehicleNumber] = useState(() => localStorage.getItem('showVehicleNumber') === 'true');
+  const [vehicleNumber, setVehicleNumber] = useState(() => localStorage.getItem('vehicleNumber') || '');
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [translatedText, setTranslatedText] = useState('');
 
-  const {setRouteData ,setIsLoading,isLoading} = useRoute();
+  const {setRouteData, setIsLoading, isLoading} = useRoute();
 
+  // Load saved route data on component mount
+  useEffect(() => {
+    const savedRouteData = localStorage.getItem('routeData');
+    if (savedRouteData) {
+      setRouteData(JSON.parse(savedRouteData));
+    }
+  }, [setRouteData]);
 
-  
-
-
+  // Save form data to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('source', source);
+    localStorage.setItem('destination', destination);
+    localStorage.setItem('intermediateStops', JSON.stringify(intermediateStops));
+    localStorage.setItem('showResults', showResults.toString());
+    localStorage.setItem('vehicleType', vehicleType);
+    localStorage.setItem('axleCount', axleCount);
+    localStorage.setItem('fuelType', fuelType);
+    localStorage.setItem('showVehicleNumber', showVehicleNumber.toString());
+    localStorage.setItem('vehicleNumber', vehicleNumber);
+  }, [source, destination, intermediateStops, showResults, vehicleType, axleCount, fuelType, showVehicleNumber, vehicleNumber]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,18 +54,19 @@ const Calculator = () => {
     console.log('destination type:', typeof destination, destination);
     setIsLoading(true); 
 
-
     try {
       const response = await calculateToll(source,destination,vehicleType);
       setShowResults(true);
       setRouteData(response);
+      // Save route data to localStorage
+      localStorage.setItem('routeData', JSON.stringify(response));
       console.log("Response Data:", response);
       
     } catch (error) {
       console.error("Error:", error);
     }finally {
-    setIsLoading(false);       // stop loading once done
-  }
+      setIsLoading(false);       // stop loading once done
+    }
   };
 
   const addIntermediateStop = () => {
