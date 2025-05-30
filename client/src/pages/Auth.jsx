@@ -118,31 +118,35 @@ export default function Auth() {
       </div>
     )}
       {/* Left Side - Image */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-r from-primary-600 to-primary-800 p-12">
-        <div className="w-full flex flex-col justify-between">
-          <div>
-            <Link to="/" className="text-white text-3xl font-bold">
-              LogiTrack
-            </Link>
-            <h2 className="text-white text-4xl font-bold mt-10">Welcome Back</h2>
-            <p className="text-primary-100 mt-4 text-lg">
-              Access your logistics dashboard to track shipments, manage deliveries, and optimize your supply chain.
-            </p>
-          </div>
-          <div className="bg-white/10 p-8 rounded-xl backdrop-blur-sm">
-            <p className="text-white text-lg font-medium">
-              "This platform has revolutionized how we manage our logistics. The toll calculator saves us both time and money."
-            </p>
-            <div className="mt-4 flex items-center">
-              <div className="w-12 h-12 bg-white/20 rounded-full"></div>
-              <div className="ml-4">
-                <p className="text-white font-medium">Rajesh Kumar</p>
-                <p className="text-primary-100">Fleet Manager</p>
-              </div>
-            </div>
-          </div>
+      <div
+  className="hidden lg:flex lg:w-1/2 bg-cover bg-center p-12"
+  style={{ backgroundImage: "url('/public/trucks.jpg')" }} // Adjust path as needed
+>
+  <div className="w-full flex flex-col justify-between p-6 rounded-xl ">
+    <div className=''>
+      <Link to="/" className="text-white text-3xl font-bold">
+        TollTrack
+      </Link>
+      <h2 className="text-white text-4xl font-bold mt-10">Welcome Back</h2>
+      <p className="text-primary-100 mt-4 text-lg">
+        Your smart logistics hub - plan routes, minimize tolls, and deliver faster.
+      </p>
+    </div>
+    <div className="bg-white/10 p-8 rounded-xl backdrop-blur-sm">
+      <p className="text-white text-lg font-medium">
+        "This platform has revolutionized how we manage our logistics. The toll calculator saves us both time and money."
+      </p>
+      <div className="mt-4 flex items-center">
+        <div className="w-12 h-12 bg-white/20 rounded-full"></div>
+        <div className="ml-4">
+          <p className="text-white font-medium">Rajesh Kumar</p>
+          <p className="text-primary-100">Fleet Manager</p>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
 
       {/* Right Side - Forms */}
       <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-20 xl:px-24">
