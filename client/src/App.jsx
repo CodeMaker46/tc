@@ -6,8 +6,10 @@ import Calculator from './pages/Calculator';
 import ForgetPassword from './components/ForgetPassword';
 import ResetPassword from './components/ResetPassword';
 import Auth from './pages/Auth';
+import Profile from './pages/Profile';
 import PrivateRoute from './components/PrivateRoute';
 import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function App() {
   return (
@@ -30,12 +32,20 @@ function App() {
                   <Route path="/" element={<Home />} />
                   <Route path="/forget-password" element={<ForgetPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
-                  {/* Protected Route */}
+                  {/* Protected Routes */}
                   <Route
                     path="/calculator"
                     element={
                       <PrivateRoute>
                         <Calculator />
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route
+                    path="/profile"
+                    element={
+                      <PrivateRoute>
+                        <Profile />
                       </PrivateRoute>
                     }
                   />
