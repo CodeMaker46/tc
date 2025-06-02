@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from 'react-toastify'; 
 const Header = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
@@ -23,37 +23,47 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-blue-600 text-white">
+    <header className="bg-red-600 text-white"> {/* Updated background color */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          {/* Brand Name */}
-          <Link to="/" className="flex items-center hover:text-blue-100 transition-colors">
-            <span className="text-xl font-semibold text-white">
-              Mahindra Toll Calculator
-            </span>
-          </Link>
+        <Link to="/" className="flex items-center space-x-2 hover:text-red-100 transition-colors">
+  <img src="/image.png" alt="Mahindra Logo" className="h-8 w-30" />
+  <span className="text-xl font-semibold text-white">
+    MahindraToll Calculator
+  </span>
+</Link>
 
+  
           {/* Navigation */}
           <nav className="flex items-center space-x-4">
-             {isLoggedIn && (
+            {isLoggedIn && (
+              <>
               <Link
-                       to="/calculator"
-                   className="px-4 py-2 text-white hover:bg-blue-700 rounded-lg transition-colors">
-                    Calculator
+              to="/profile"
+              className="px-4 py-2 text-white hover:bg-red-700 rounded-lg transition-colors"
+            >
+              Profile
+            </Link>
+              <Link
+                to="/calculator"
+                className="px-4 py-2 text-white hover:bg-red-700 rounded-lg transition-colors">
+                Calculator
               </Link>
-             )}
-
+              
+            </>
+            )}
+  
             {isLoggedIn ? (
               <button
                 onClick={handleSignOut}
-                className="px-4 py-2 bg-white text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors"
+                className="px-4 py-2 bg-white text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
               >
                 Sign Out
               </button>
             ) : (
               <Link
                 to="/auth"
-                className="px-4 py-2 bg-white text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors"
+                className="px-4 py-2 bg-white text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
               >
                 Login / Signup
               </Link>
@@ -63,6 +73,7 @@ const Header = () => {
       </div>
     </header>
   );
+  
 };
 
 export default Header;

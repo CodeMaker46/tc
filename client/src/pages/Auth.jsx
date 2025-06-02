@@ -27,32 +27,20 @@ export default function Auth() {
     try {
       console.log('Starting Google login...');
       const result = await signInWithPopup(auth, googleProvider);
+  
+      const idToken = await result.user.getIdToken();
       console.log('Google login successful:', {
         userEmail: result.user.email,
         userName: result.user.displayName,
-        hasIdToken: !!(await result.user.getIdToken())
+        hasIdToken: !!idToken
       });
-      
-      const idToken = await result.user.getIdToken();
-      
-      // Send the token to your backend
-      const res = await fetch(`${backendUrl}/api/auth/firebase-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      });
-      
-      const data = await res.json();
-      
-      if (res.ok) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('name', result.user.displayName || 'User');
-        toast.success('Google login successful!');
-        navigate('/');
-      } else {
-        console.error('Backend login failed:', data);
-        toast.error(data.message || 'Google login failed');
-      }
+  
+      // Save token and name locally
+      localStorage.setItem('token', idToken);
+      localStorage.setItem('name', result.user.displayName || 'User');
+  
+      toast.success('Google login successful!');
+      navigate('/');
     } catch (error) {
       console.error('Google login error details:', {
         code: error.code,
@@ -64,6 +52,7 @@ export default function Auth() {
       setIsLoading(false);
     }
   };
+  
 
   const handleLogin = async (e) => {
     e.preventDefault();
