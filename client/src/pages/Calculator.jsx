@@ -24,7 +24,7 @@ const Calculator = () => {
   const [vehicleNumber, setVehicleNumber] = useState(() => localStorage.getItem('vehicleNumber') || '');
   const [isVoiceActive, setIsVoiceActive] = useState(false);
 
-  const {tolls,setRouteData, setIsLoading, isLoading,setSelectedRouteIndex} = useRoute();
+  const {tolls,setRouteData, setIsLoading, isLoading,setSelectedRouteIndex,selectedRouteIndex} = useRoute();
 
   const sourceRef = useRef();
   const destinationRef = useRef();
@@ -45,13 +45,6 @@ const Calculator = () => {
   useEffect(() => {
     localStorage.setItem('source', source);
     localStorage.setItem('destination', destination);
-    localStorage.setItem('intermediateStops', JSON.stringify(intermediateStops));
-    localStorage.setItem('showResults', showResults.toString());
-    localStorage.setItem('vehicleType', vehicleType);
-    localStorage.setItem('axleCount', axleCount);
-    localStorage.setItem('fuelType', fuelType);
-    localStorage.setItem('showVehicleNumber', showVehicleNumber.toString());
-    localStorage.setItem('vehicleNumber', vehicleNumber);
   }, [source, destination, intermediateStops, showResults, vehicleType, axleCount, fuelType, showVehicleNumber, vehicleNumber]);
 
 
@@ -65,14 +58,17 @@ const Calculator = () => {
       
       const response = await calculateToll(source, destination, vehicleType);
       setShowResults(true);
+      localStorage.setItem('showResults', 'true');
       setRouteData(response);
       localStorage.setItem('routeData', JSON.stringify(response));
+      localStorage.setItem('polyline', response?.routes[selectedRouteIndex]?.polyline);
       const token = localStorage.getItem('token');
       const userId = localStorage.getItem('userId');
 
-      if(selectedRouteIndex===-1) return;
-  
-      if (token && userId && response.routes && response.routes.length > 0) {
+
+
+
+      if (setSelectedRouteIndex !== -1 && token && userId && response.routes && response.routes.length > 0) {
         try {
           if(selectedRouteIndex ===-1) return;
           const selectedRoute = response.routes[selectedRouteIndex] || response.routes[0];
@@ -104,11 +100,19 @@ const Calculator = () => {
       setIsLoading(false);
     }
   };
-
+  // console.log("current tolls in the calculator",tolls)
 
   const handleEditJourney = ()=>{
     setShowResults(false);
     setSelectedRouteIndex(-1);
+    localStorage.removeItem('routeData')
+    localStorage.removeItem('name')
+    localStorage.removeItem('routeData')
+    localStorage.removeItem('selectedRouteIndex')
+    localStorage.removeItem('tolls')
+    localStorage.removeItem('polyline')
+    localStorage.removeItem('map')
+    localStorage.removeItem('showResults');
   }
 
 
@@ -181,7 +185,7 @@ const Calculator = () => {
 
     <div className="bg-white rounded-lg shadow-sm p-4 mt-6">
   <h3 className="text-xl font-semibold mb-4">Toll Details for Selected Route</h3>
-
+  
   {!tolls || tolls.length===0? (
     <p>No tolls found on this route or the route is not selected.</p>
   ) : (

@@ -15,6 +15,13 @@ const Header = () => {
  
     localStorage.removeItem('token');
     localStorage.removeItem('name')
+    localStorage.removeItem('routeData')
+    localStorage.removeItem('selectedRouteIndex')
+    localStorage.removeItem('tolls')
+    localStorage.removeItem('polyline')
+    localStorage.removeItem('map')  
+    localStorage.removeItem('showResults');
+    
    window.location.reload(); 
     setIsLoggedIn(false);
     toast.success('Sign out successfull')

@@ -265,7 +265,7 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         // 1. Snap check (0.1km)
         const isVerifiedSnap = uniqueSnapped.some(pt => haversineDistance(pt.lat, pt.lng, toll.location.lat, toll.location.lng) < 0.01);
         // 2. Fallback: if within 0.2km of any original polyline point
-        const isVerifiedFallback = decodedPath.some(pt => haversineDistance(pt.lat, pt.lng, toll.location.lat, toll.location.lng) < 1);
+        const isVerifiedFallback = decodedPath.some(pt => haversineDistance(pt.lat, pt.lng, toll.location.lat, toll.location.lng) < 0.028);
         return { ...toll, verified: isVerifiedSnap || isVerifiedFallback };
       });
       // Only keep verified tolls for price and map
