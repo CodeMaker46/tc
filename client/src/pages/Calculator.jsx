@@ -48,10 +48,6 @@ const Calculator = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("source & destination & vehicleType:", source,destination, vehicleType);
-    console.log("vehicleType type:", typeof vehicleType, "value:", vehicleType);
-    console.log('source type:', typeof source, source);
-    console.log('destination type:', typeof destination, destination);
     setIsLoading(true); 
 
     try {
@@ -60,7 +56,7 @@ const Calculator = () => {
       setRouteData(response);
       // Save route data to localStorage
       localStorage.setItem('routeData', JSON.stringify(response));
-      console.log("Response Data:", response);
+      // console.log("Response Data:", response);
       
     } catch (error) {
       console.error("Error:", error);

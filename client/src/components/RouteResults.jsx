@@ -7,10 +7,6 @@ const RouteResults = ({
   vehicleType,
 }) => {
   const { routeData, isLoading ,selectedRouteIndex, setSelectedRouteIndex } = useRoute();
-  console.log('source : ', source);
-  console.log('destination : ', destination);
-  console.log('results : ', vehicleType);
-  console.log("route data",routeData)
 
   if (isLoading) {
     return (

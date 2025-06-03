@@ -3,7 +3,7 @@ const path = require('path');
 const csv = require('csv-parser');
 
 const loadCityTollPairs = () => {
-  const filePath = path.join(__dirname, '../data/tfw.csv');
+  const filePath = path.join(__dirname, '../data/NHAI_City_Tolls.csv');
   const cityPairs = {};
 
   return new Promise((resolve, reject) => {

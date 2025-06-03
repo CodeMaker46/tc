@@ -174,7 +174,7 @@ const getTollData = async (req, res, nhaiData, tfw) => {
             });
           }
         });
-        console.log("Tolls Verified: ", tollsVerified);
+        // console.log("Tolls Verified: ", tollsVerified);
       }
 
 let totalToll = 0;
@@ -187,14 +187,14 @@ for (let i = 0; i < tollsVerified.length - 1; i++) {
   const edgeKey = `${tollA.name}|${tollB.name}`;
 
   if (tfw[edgeKey] !== undefined) {
-    console.log("price", tfw[edgeKey][vehicleType]);
+    // console.log("price", tfw[edgeKey][vehicleType]);
     totalToll += parseFloat(tfw[edgeKey][vehicleType]) || 0;
     covered.add(tollA.name);
-    console.log(`Using TFW pair: ${tollA.name} - ${tollB.name} with rate ${parseFloat(tfw[edgeKey][vehicleType])}`);
+    // console.log(`Using TFW pair: ${tollA.name} - ${tollB.name} with rate ${parseFloat(tfw[edgeKey][vehicleType])}`);
     covered.add(tollB.name);
   //  f[edgeKey] = true;
   } else if(!covered.has(tollA.name)) {
-    console.log(`Using single toll: ${tollA.name} with rate ${parseFloat(tollA.rate)}`);
+    // console.log(`Using single toll: ${tollA.name} with rate ${parseFloat(tollA.rate)}`);
     totalToll += parseFloat(tollA.rate) || 0;
     covered.add(tollA.name);
   }
