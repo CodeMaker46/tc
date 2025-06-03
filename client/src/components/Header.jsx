@@ -8,7 +8,6 @@ const Header = () => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    console.log("token : ",token) 
     setIsLoggedIn(!!token);
   }, []);
 

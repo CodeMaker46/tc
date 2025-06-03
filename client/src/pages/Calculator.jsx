@@ -3,30 +3,11 @@ import RouteResults from '../components/RouteResults';
 import MapContainer from '../components/MapContainer';
 import { calculateToll } from '../utils/api';
 import { useRoute } from '../context/RouteContext';
-import{ React } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import usePlacesAutocomplete from '../hooks/usePlacesAutocomplete';
 
-import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
-// Custom hook for Google Places Autocomplete
-function usePlacesAutocomplete(inputRef, onPlaceSelect) {
-  useEffect(() => {
-    if (!window.google || !inputRef.current) return;
-    const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-      types: ['geocode'],
-      componentRestrictions: { country: 'in' }
-    });
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      if (place.formatted_address) {
-        onPlaceSelect(place.formatted_address);
-      } else if (place.name) {
-        onPlaceSelect(place.name);
-      }
-    });
-  }, [inputRef, onPlaceSelect]);
-}
 
 const Calculator = () => {
   const [source, setSource] = useState(() => localStorage.getItem('source') || '');
@@ -42,15 +23,15 @@ const Calculator = () => {
   const [showVehicleNumber, setShowVehicleNumber] = useState(() => localStorage.getItem('showVehicleNumber') === 'true');
   const [vehicleNumber, setVehicleNumber] = useState(() => localStorage.getItem('vehicleNumber') || '');
   const [isVoiceActive, setIsVoiceActive] = useState(false);
-  const [translatedText, setTranslatedText] = useState('');
 
-  const {routeData,setRouteData,selectedRouteIndex, setIsLoading, isLoading,setSelectedRouteIndex,mapRef, polylineRef} = useRoute();
+  const {tolls,setRouteData, setIsLoading, isLoading,setSelectedRouteIndex} = useRoute();
 
   const sourceRef = useRef();
   const destinationRef = useRef();
-
   usePlacesAutocomplete(sourceRef, setSource);
   usePlacesAutocomplete(destinationRef, setDestination);
+  
+  
 
   // Load saved route data on component mount
   useEffect(() => {
@@ -73,35 +54,27 @@ const Calculator = () => {
     localStorage.setItem('vehicleNumber', vehicleNumber);
   }, [source, destination, intermediateStops, showResults, vehicleType, axleCount, fuelType, showVehicleNumber, vehicleNumber]);
 
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    
   
     try {
-      // Calculate toll
+      
       const response = await calculateToll(source, destination, vehicleType);
       setShowResults(true);
       setRouteData(response);
-      setSelectedRouteIndex(0);
-      localStorage.setItem('selectedRouteIndex', '0');
-  
-      // Save route data to localStorage
       localStorage.setItem('routeData', JSON.stringify(response));
-  
-      // Save route to backend
       const token = localStorage.getItem('token');
       const userId = localStorage.getItem('userId');
-  
-      // Set selectedRouteIndex to 0 if not found
-      let selectedRouteIndex = parseInt(localStorage.getItem('selectedRouteIndex'));
-      
-      if (isNaN(selectedRouteIndex)) {
-        selectedRouteIndex = 0;
-        localStorage.setItem('selectedRouteIndex', selectedRouteIndex.toString());
-      }
+
+      if(selectedRouteIndex===-1) return;
   
       if (token && userId && response.routes && response.routes.length > 0) {
         try {
+          if(selectedRouteIndex ===-1) return;
           const selectedRoute = response.routes[selectedRouteIndex] || response.routes[0];
           const payload = {
             source,
@@ -131,53 +104,12 @@ const Calculator = () => {
       setIsLoading(false);
     }
   };
-  
 
-  const addIntermediateStop = () => {
-    setIntermediateStops([...intermediateStops, '']);
-  };
 
-  const updateIntermediateStop = (index, value) => {
-    const updatedStops = [...intermediateStops];
-    updatedStops[index] = value;
-    setIntermediateStops(updatedStops);
-  };
-
-  const removeIntermediateStop = (index) => {
-    const updatedStops = intermediateStops.filter((_, i) => i !== index);
-    setIntermediateStops(updatedStops);
-  };
-
-  const toggleVoiceAssistant = () => {
-    setIsVoiceActive(!isVoiceActive);
-    // Add voice recognition logic here
-  };
-
-  const handleMicClick = () => {
-  if (!listening) {
-    setIsVoiceActive(true);
-    resetTranscript();
-    SpeechRecognition.startListening({ continuous: false, language: 'hi-IN' });
-  } else {
-    setIsVoiceActive(false);
-    SpeechRecognition.stopListening();
+  const handleEditJourney = ()=>{
+    setShowResults(false);
+    setSelectedRouteIndex(-1);
   }
-};
-
-const handleEditJourney = () => {
-  setShowResults(false);
-  setSource('');
-  setDestination('');
-  setIntermediateStops([]);
-  setVehicleType('Car');
-  setVehicleNumber('');
-  setShowVehicleNumber(false);
-  setRouteData(null); 
-  setSelectedRouteIndex(null); // Reset selected route index
-  localStorage.removeItem('selectedRouteIndex'); // Clear saved selected route index
-  localStorage.removeItem('routeData'); // Clear saved route data
-  localStorage.removeItem('showResults'); // Clear showResults state
-}
 
 
   return (
@@ -225,7 +157,7 @@ const handleEditJourney = () => {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold text-gray-900">Route Options</h2>
           <button
-            onClick={() => setShowResults(false)}
+            onClick={ handleEditJourney }
             className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium flex items-center space-x-2"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -246,6 +178,24 @@ const handleEditJourney = () => {
         <MapContainer source={source} destination={destination} />
       </div>
     </div>
+
+    <div className="bg-white rounded-lg shadow-sm p-4 mt-6">
+  <h3 className="text-xl font-semibold mb-4">Toll Details for Selected Route</h3>
+
+  {!tolls || tolls.length===0? (
+    <p>No tolls found on this route or the route is not selected.</p>
+  ) : (
+    <ul className="list-decimal list-inside space-y-2">
+      {tolls.map((toll, i) => (
+        <li key={i}>
+          <span className="font-medium"> 🛣️ {toll.name}</span> : <span className='text-green-700'> ₹{toll.rate}</span>
+        </li>
+      ))}
+    </ul>
+  )}
+</div>
+
+
   </div>
 ) : (
   /* Input Form View */
@@ -258,18 +208,6 @@ const handleEditJourney = () => {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium text-gray-900">Route Information</h3>
-            <button
-              type="button"
-              onClick={handleMicClick}
-              className={`p-2 rounded-full ${
-                isVoiceActive ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
-              } hover:bg-red-100 hover:text-red-600 transition-colors`}
-            >
-              <p className="text-sm text-gray-500">
-                🎤 Detected: {translatedText} <br />
-                Source: <strong>{source}</strong>, Destination: <strong>{destination}</strong>
-              </p>
-            </button>
           </div>
 
 
@@ -316,17 +254,6 @@ const handleEditJourney = () => {
     </div>
   </div>
 ))}
-
-<button
-  type="button"
-  onClick={addIntermediateStop}
-  className="mt-2 flex items-center justify-center w-full py-2 px-4 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
->
-  <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-  </svg>
-  Add Stop
-</button>
 
 <div>
   <label htmlFor="destination" className="block text-sm font-medium text-gray-700">
