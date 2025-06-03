@@ -50,24 +50,31 @@ const Calculator = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true); 
-
+    setIsLoading(true);
+  
     try {
       // Calculate toll
       const response = await calculateToll(source, destination, vehicleType);
       setShowResults(true);
       setRouteData(response);
-      
+  
       // Save route data to localStorage
       localStorage.setItem('routeData', JSON.stringify(response));
-
+  
       // Save route to backend
       const token = localStorage.getItem('token');
       const userId = localStorage.getItem('userId');
+  
+      // Set selectedRouteIndex to 0 if not found
+      let selectedRouteIndex = parseInt(localStorage.getItem('selectedRouteIndex'));
+      if (isNaN(selectedRouteIndex)) {
+        selectedRouteIndex = 0;
+        localStorage.setItem('selectedRouteIndex', selectedRouteIndex.toString());
+      }
+  
       if (token && userId && response.routes && response.routes.length > 0) {
         try {
-          // Get the selected route or default to first route
-          const selectedRoute = response.routes[0];
+          const selectedRoute = response.routes[selectedRouteIndex] || response.routes[0];
           await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/users/routes`, {
             source,
             destination,
@@ -89,6 +96,7 @@ const Calculator = () => {
       setIsLoading(false);
     }
   };
+  
 
   const addIntermediateStop = () => {
     setIntermediateStops([...intermediateStops, '']);
