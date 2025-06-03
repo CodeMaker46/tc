@@ -161,7 +161,7 @@ export default function Auth() {
         TollTrack
       </Link>
       <h2 className="text-white text-4xl font-bold mt-10">Welcome Back</h2>
-      <p className="text-primary-100 mt-4 text-lg">
+      <p className="text-red-100 mt-4 text-lg">
         Your smart logistics hub - plan routes, minimize tolls, and deliver faster.
       </p>
     </div>
@@ -173,7 +173,7 @@ export default function Auth() {
         <div className="w-12 h-12 bg-white/20 rounded-full"></div>
         <div className="ml-4">
           <p className="text-white font-medium">Rajesh Kumar</p>
-          <p className="text-primary-100">Fleet Manager</p>
+          <p className="text-red-100">Fleet Manager</p>
         </div>
       </div>
     </div>
@@ -196,7 +196,7 @@ export default function Auth() {
                   setOtp('');
                   setForm({ name: '', email: '', password: '', confirmPassword: '' });
                 }}
-                className="font-medium text-primary-600 hover:text-primary-500"
+                className="font-medium text-red-600 hover:text-red-500"
               >
                 {isLogin ? 'Sign up' : 'Sign in'}
               </button>
@@ -208,7 +208,7 @@ export default function Auth() {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              className="w-full flex justify-center items-center py-3 px-4 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 mb-4"
+              className="w-full flex justify-center items-center py-3 px-4 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 mb-4"
             >
               <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5 mr-2" />
               Continue with Google
@@ -234,7 +234,7 @@ export default function Auth() {
                     required
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     placeholder="you@company.com"
                   />
                 </div>
@@ -248,7 +248,7 @@ export default function Auth() {
                     required
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     placeholder="••••••••"
                   />
                 </div>
@@ -257,7 +257,7 @@ export default function Auth() {
                   <div className="flex items-center">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
                     />
                     <label className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
                       Remember me
@@ -265,7 +265,7 @@ export default function Auth() {
                   </div>
                   <Link to='/forget-password'><button
                     type="button"
-                    className="text-sm font-medium text-primary-600 hover:text-primary-500"
+                    className="text-sm font-medium text-red-600 hover:text-red-500"
                   >
                     Forgot password?
                   </button></Link>
@@ -273,7 +273,7 @@ export default function Auth() {
 
                 <button
                   type="submit"
-                  className="w-full flex justify-center py-3 px-4 rounded-lg bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  className="w-full flex justify-center py-3 px-4 rounded-lg bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                 >
                   Sign in
                 </button>
@@ -290,7 +290,7 @@ export default function Auth() {
                       required
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
                       placeholder="John Doe"
                     />
                   </div>
@@ -304,7 +304,7 @@ export default function Auth() {
                       required
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
                       placeholder="you@company.com"
                     />
                   </div>
@@ -318,7 +318,7 @@ export default function Auth() {
                       required
                       value={form.password}
                       onChange={(e) => setForm({ ...form, password: e.target.value })}
-                      className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
                       placeholder="••••••••"
                     />
                   </div>
@@ -332,14 +332,14 @@ export default function Auth() {
                       required
                       value={form.confirmPassword}
                       onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                      className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
                       placeholder="••••••••"
                     />
                   </div>
 
                   <button
                     type="submit"
-                    className="w-full flex justify-center py-3 px-4 rounded-lg bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    className="w-full flex justify-center py-3 px-4 rounded-lg bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                   >
                     Sign up
                   </button>
@@ -354,13 +354,13 @@ export default function Auth() {
                     type="text"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     placeholder="123456"
                   />
                   <button
                     type="button"
                     onClick={handleVerifyOtp}
-                    className="mt-2 w-full flex justify-center py-2 px-4 rounded-lg bg-primary-500 text-white hover:bg-primary-600"
+                    className="mt-2 w-full flex justify-center py-2 px-4 rounded-lg bg-red-500 text-white hover:bg-red-600"
                   >
                     Verify OTP
                   </button>
