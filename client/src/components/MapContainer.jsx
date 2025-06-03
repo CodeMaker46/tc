@@ -15,7 +15,15 @@ const containerStyle = {
 const MapContainer = () => {
   const { routeData, selectedRouteIndex, mapRef, polylineRef } = useRoute();
   const [tolls, setTolls] = useState(null);
- 
+  //console.log("routeData",routeData,selectedRouteIndex);
+
+  // Add debug for verified/unverified tolls
+  if (routeData?.routes && selectedRouteIndex != null) {
+    const selectedRoute = routeData.routes[selectedRouteIndex];
+    // console.log('Verified tolls:', selectedRoute.tollsVerified);
+    // console.log('Unverified tolls:', selectedRoute.tollsUnverified);
+    // console.log('SnapToRoadError:', selectedRoute.snapToRoadError);
+  }
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -27,13 +35,13 @@ const MapContainer = () => {
   const [hoveredTollIndex, setHoveredTollIndex] = useState(null);
 
   // Add debugging
-  useEffect(() => {
-    console.log('Tolls data:', tolls);
-    console.log('Hovered toll index:', hoveredTollIndex);
-    if (hoveredTollIndex !== null && tolls[hoveredTollIndex]) {
-      console.log('Hovered toll data:', tolls[hoveredTollIndex]);
-    }
-  }, [tolls, hoveredTollIndex]);
+  // useEffect(() => {
+  //   console.log('Tolls data:', tolls);
+  //   //console.log('Hovered toll index:', hoveredTollIndex);
+  //   if (hoveredTollIndex !== null && tolls[hoveredTollIndex]) {
+  //     console.log('Hovered toll data:', tolls[hoveredTollIndex]);
+  //   }
+  // }, [tolls, hoveredTollIndex]);
 
   useEffect(() => {
     if (!isLoaded || !routeData?.routes || selectedRouteIndex == null) return;
@@ -102,7 +110,7 @@ const MapContainer = () => {
   const handleTollMouseOut = () => {
     // Add a small delay before hiding to prevent flickering
     hoverTimeoutRef.current = setTimeout(() => {
-      console.log('Mouse out');
+      //console.log('Mouse out');
       setHoveredTollIndex(null);
     }, 100);
   };

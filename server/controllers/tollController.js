@@ -6,7 +6,7 @@ const toRad = deg => (deg * Math.PI) / 180;
 const toDeg = rad => (rad * 180) / Math.PI;
 
 // Compute a bounding box with a 1 km buffer on both sides of a segment
-const getBoundingBoxWithBuffer = (pointA, pointB, bufferKm = 0.5) => {
+const getBoundingBoxWithBuffer = (pointA, pointB, bufferKm = 0.02) => {
   const R = 6371; // Earth radius in km
   const { lat: lat1, lng: lon1 } = pointA;
   const { lat: lat2, lng: lon2 } = pointB;
@@ -85,11 +85,12 @@ const isTollInDirection = (pointA, pointB, tollPoint) => {
 const findNHAITollsInBoundingBox = (bbox, nhaiData) => {
   const [minLat, minLon, maxLat, maxLon] = bbox;
   return nhaiData.filter(toll => {
-    const tollLat = parseFloat(toll.Latitude);
-    const tollLon = parseFloat(toll.Longitude);
+    const tollLat = parseFloat(toll.SnappedLatitude || toll.Latitude);
+    const tollLon = parseFloat(toll.SnappedLongitude || toll.Longitude);
     return isPointInBoundingBox(tollLat, tollLon, bbox);
   });
 };
+
 
 // Calculate toll rates based on vehicle type
 const getTollRate = (toll, vehicleType = 'Car') => {
@@ -110,6 +111,28 @@ const getTollRate = (toll, vehicleType = 'Car') => {
   return parseFloat(toll[key]) || 0;
 };
 
+const haversineDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // km
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Helper to interpolate points between two lat/lngs
+function interpolatePoints(p1, p2, numPoints) {
+  const points = [];
+  for (let i = 1; i < numPoints; i++) {
+    const lat = p1.lat + (p2.lat - p1.lat) * (i / numPoints);
+    const lng = p1.lng + (p2.lng - p1.lng) * (i / numPoints);
+    points.push({ lat, lng });
+  }
+  return points;
+}
 
 const getTollData = async (req, res, nhaiData, tfw) => {
   const { origin, destination, vehicleType = 'Car' } = req.body;
@@ -133,24 +156,18 @@ const getTollData = async (req, res, nhaiData, tfw) => {
     const googleRes = await axios.get(directionsURL);
     const routes = googleRes.data.routes;
 
-    // console.log("Routes : ", routes);
-
     if (!routes || routes.length === 0) {
       return res.status(404).json({ error: 'Route not found' });
     }
 
     // Process all alternative routes
-
-    const routeResults = routes.map((route, routeIndex) => {
-      // Extract path as geoPoints
+    const routeResults = await Promise.all(routes.map(async (route, routeIndex) => {
+      // --- Old logic: get tolls by bounding box + direction ---
       const steps = route.legs[0].steps;
       const geoPoints = steps.map(step => ({
         lat: step.start_location.lat,
         lng: step.start_location.lng,
       }));
-
-
-      // Add the final destination point
       if (steps.length > 0) {
         const lastStep = steps[steps.length - 1];
         geoPoints.push({
@@ -158,30 +175,18 @@ const getTollData = async (req, res, nhaiData, tfw) => {
           lng: lastStep.end_location.lng,
         });
       }
-
-
-      const tollsVerified = [];
-
-      // Step 2: For each segment between two points, check for tolls
+      let tollsOld = [];
       for (let i = 0; i < geoPoints.length - 1; i++) {
         const pointA = geoPoints[i];
         const pointB = geoPoints[i + 1];
-
-        // Create a bounding box for this segment with a buffer
         const bbox = getBoundingBoxWithBuffer(pointA, pointB, 0.5); // 0.5km buffer
-
-        // Find NHAI tolls within this bounding box
         const tollsInBox = findNHAITollsInBoundingBox(bbox, nhaiData).filter(toll => {
           const tollPoint = { lat: parseFloat(toll.Latitude), lng: parseFloat(toll.Longitude) };
           return isTollInDirection(pointA, pointB, tollPoint);
         });
-        //  console.log(`Tolls found in box for segment ${i}:`, tollsInBox.length);
-
-        // Add unique tolls to our verified list
         tollsInBox.forEach(toll => {
-          // Check if this toll is already in our list
-          if (!tollsVerified.some(t => t.name === toll.Tollname)) {
-            tollsVerified.push({
+          if (!tollsOld.some(t => t.name === toll.Tollname)) {
+            tollsOld.push({
               name: toll.Tollname,
               location: {
                 lat: parseFloat(toll.Latitude),
@@ -192,51 +197,125 @@ const getTollData = async (req, res, nhaiData, tfw) => {
             });
           }
         });
-        // console.log("Tolls Verified: ", tollsVerified);
       }
-
-let totalToll = 0;
-const covered = new Set(); 
-
-
-for (let i = 0; i < tollsVerified.length - 1; i++) {
-  const tollA = tollsVerified[i];
-  const tollB = tollsVerified[i + 1];
-  const edgeKey = `${tollA.name}|${tollB.name}`;
-
-  if (tfw[edgeKey] !== undefined) {
-    // console.log("price", tfw[edgeKey][vehicleType]);
-    totalToll += parseFloat(tfw[edgeKey][vehicleType]) || 0;
-    covered.add(tollA.name);
-    // console.log(`Using TFW pair: ${tollA.name} - ${tollB.name} with rate ${parseFloat(tfw[edgeKey][vehicleType])}`);
-    covered.add(tollB.name);
-  //  f[edgeKey] = true;
-  } else if(!covered.has(tollA.name)) {
-    // console.log(`Using single toll: ${tollA.name} with rate ${parseFloat(tollA.rate)}`);
-    totalToll += parseFloat(tollA.rate) || 0;
-    covered.add(tollA.name);
-  }
-}
-
-
-const lastToll = tollsVerified[tollsVerified.length - 1];
-if (!covered.has(lastToll.name)) {
-  totalToll += parseFloat(lastToll.rate) || 0;
-}
-
-     // const totalToll = tollsVerified.reduce((sum, toll) => sum + toll.rate, 0);
-
+      // --- Snap the route ---
+      const polylinePoints = route.overview_polyline.points;
+      const decodePolyline = (encoded) => {
+        let points = [];
+        let index = 0, len = encoded.length;
+        let lat = 0, lng = 0;
+        while (index < len) {
+          let b, shift = 0, result = 0;
+          do {
+            b = encoded.charCodeAt(index++) - 63;
+            result |= (b & 0x1f) << shift;
+            shift += 5;
+          } while (b >= 0x20);
+          let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+          lat += dlat;
+          shift = 0;
+          result = 0;
+          do {
+            b = encoded.charCodeAt(index++) - 63;
+            result |= (b & 0x1f) << shift;
+            shift += 5;
+          } while (b >= 0x20);
+          let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+          lng += dlng;
+          points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+        }
+        return points;
+      };
+      let decodedPath = decodePolyline(polylinePoints);
+      // Interpolate more points for denser path
+      let densePath = [];
+      const INTERPOLATE_NUM = 5; // 4 extra points between each pair
+      for (let i = 0; i < decodedPath.length - 1; i++) {
+        densePath.push(decodedPath[i]);
+        densePath.push(...interpolatePoints(decodedPath[i], decodedPath[i + 1], INTERPOLATE_NUM));
+      }
+      densePath.push(decodedPath[decodedPath.length - 1]);
+      // Snap to Roads API (max 100 points per request, so chunk if needed)
+      let snappedPoints = [];
+      let snapToRoadError = null;
+      const chunkSize = 100;
+      for (let i = 0; i < densePath.length; i += chunkSize) {
+        const chunk = densePath.slice(i, i + chunkSize);
+        const chunkStr = chunk.map(p => `${p.lat},${p.lng}`).join('|');
+        const snapUrl = `https://roads.googleapis.com/v1/snapToRoads?path=${chunkStr}&interpolate=true&key=${apiKey}`;
+        try {
+          const snapRes = await axios.get(snapUrl);
+          if (snapRes.data.snappedPoints) {
+            snappedPoints.push(...snapRes.data.snappedPoints.map(p => ({
+              lat: p.location.latitude,
+              lng: p.location.longitude
+            })));
+          }
+        } catch (err) {
+          snapToRoadError = err.response?.data || err.message;
+          console.error('Snap to road failed:', snapToRoadError);
+        }
+      }
+      // Remove duplicate snapped points
+      const uniqueSnapped = snappedPoints.filter((pt, idx, arr) =>
+        arr.findIndex(p => p.lat === pt.lat && p.lng === pt.lng) === idx
+      );
+      // --- Verify each toll ---
+      tollsOld = tollsOld.map(toll => {
+        // 1. Snap check (0.1km)
+        const isVerifiedSnap = uniqueSnapped.some(pt => haversineDistance(pt.lat, pt.lng, toll.location.lat, toll.location.lng) < 0.1);
+        // 2. Fallback: if within 0.2km of any original polyline point
+        const isVerifiedFallback = decodedPath.some(pt => haversineDistance(pt.lat, pt.lng, toll.location.lat, toll.location.lng) < 0.2);
+        return { ...toll, verified: isVerifiedSnap || isVerifiedFallback };
+      });
+      // Only keep verified tolls for price and map
+      const verifiedTolls = tollsOld.filter(t => t.verified);
+      const unverifiedTolls = tollsOld.filter(t => !t.verified);
+      let totalToll = 0;
+      const covered = new Set();
+      // Helper to check if a toll is on the route
+      const isTollOnRoute = (toll) => {
+        // 1. Snap check (0.2km)
+        const isSnap = uniqueSnapped.some(pt => haversineDistance(pt.lat, pt.lng, toll.location.lat, toll.location.lng) < 0.05);
+        // 2. Fallback: if within 0.4km of any original polyline point
+        //const isFallback = decodedPath.some(pt => haversineDistance(pt.lat, pt.lng, toll.location.lat, toll.location.lng) < 0.4);
+        return isSnap ;//|| isFallback;
+      };
+      for (let i = 0; i < verifiedTolls.length - 1; i++) {
+        const tollA = verifiedTolls[i];
+        const tollB = verifiedTolls[i + 1];
+        // Only use city pair if both tolls are on the route
+        if (isTollOnRoute(tollA) && isTollOnRoute(tollB)) {
+          const edgeKey = `${tollA.name}|${tollB.name}`;
+          if (tfw[edgeKey] !== undefined) {
+            totalToll += parseFloat(tfw[edgeKey][vehicleType]) || 0;
+            covered.add(tollA.name);
+            covered.add(tollB.name);
+            continue;
+          }
+        }
+        if (!covered.has(tollA.name)) {
+          totalToll += parseFloat(tollA.rate) || 0;
+          covered.add(tollA.name);
+        }
+      }
+      const lastToll = verifiedTolls[verifiedTolls.length - 1];
+      if (lastToll && !covered.has(lastToll.name)) {
+        totalToll += parseFloat(lastToll.rate) || 0;
+      }
       return {
         routeIndex,
-        // polyline: route.overview_polyline,
-        // legs: route.legs,
+        polyline: route.overview_polyline,
+        legs: route.legs,
         distance: route.legs[0].distance.text,
         duration: route.legs[0].duration.text,
-        tolls: tollsVerified,
+        tolls: verifiedTolls,
+        tollsVerified: verifiedTolls,
+        tollsUnverified: unverifiedTolls,
+        snapToRoadError,
         totalToll
       };
-    });
-    
+    }));
 
     // Sort routes by total toll (ascending)
     routeResults.sort((a, b) => a.totalToll - b.totalToll);

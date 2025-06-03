@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import RouteResults from '../components/RouteResults';
 import MapContainer from '../components/MapContainer';
 import { calculateToll } from '../utils/api';
@@ -8,6 +8,25 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+
+// Custom hook for Google Places Autocomplete
+function usePlacesAutocomplete(inputRef, onPlaceSelect) {
+  useEffect(() => {
+    if (!window.google || !inputRef.current) return;
+    const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+      types: ['geocode'],
+      componentRestrictions: { country: 'in' }
+    });
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (place.formatted_address) {
+        onPlaceSelect(place.formatted_address);
+      } else if (place.name) {
+        onPlaceSelect(place.name);
+      }
+    });
+  }, [inputRef, onPlaceSelect]);
+}
 
 const Calculator = () => {
   const [source, setSource] = useState(() => localStorage.getItem('source') || '');
@@ -26,6 +45,12 @@ const Calculator = () => {
   const [translatedText, setTranslatedText] = useState('');
 
   const {routeData,setRouteData,selectedRouteIndex, setIsLoading, isLoading,setSelectedRouteIndex,mapRef, polylineRef} = useRoute();
+
+  const sourceRef = useRef();
+  const destinationRef = useRef();
+
+  usePlacesAutocomplete(sourceRef, setSource);
+  usePlacesAutocomplete(destinationRef, setDestination);
 
   // Load saved route data on component mount
   useEffect(() => {
@@ -57,6 +82,8 @@ const Calculator = () => {
       const response = await calculateToll(source, destination, vehicleType);
       setShowResults(true);
       setRouteData(response);
+      setSelectedRouteIndex(0);
+      localStorage.setItem('selectedRouteIndex', '0');
   
       // Save route data to localStorage
       localStorage.setItem('routeData', JSON.stringify(response));
@@ -76,12 +103,19 @@ const Calculator = () => {
       if (token && userId && response.routes && response.routes.length > 0) {
         try {
           const selectedRoute = response.routes[selectedRouteIndex] || response.routes[0];
-          await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/users/routes`, {
+          const payload = {
             source,
             destination,
             price: selectedRoute.totalToll || 0,
             userId
-          }, {
+          };
+          console.log('Saving route payload:', payload);
+          // Prevent POST if any required field is missing
+          if (!payload.source || !payload.destination || !payload.userId || payload.price === undefined) {
+            toast.error('Missing required route data. Cannot save route.');
+            return;
+          }
+          await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/users/routes`, payload, {
             headers: { Authorization: `Bearer ${token}` }
           });
           toast.success('Route saved to history!');
@@ -244,6 +278,7 @@ const handleEditJourney = () => {
     Source
   </label>
   <input
+    ref={sourceRef}
     type="text"
     id="source"
     value={source}
@@ -298,6 +333,7 @@ const handleEditJourney = () => {
     Destination
   </label>
   <input
+    ref={destinationRef}
     type="text"
     id="destination"
     value={destination}

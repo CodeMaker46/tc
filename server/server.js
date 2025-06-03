@@ -9,6 +9,8 @@ const connectDB = require('./config/database');
 //const emailRoutes = require('./routes/emailRoutes');
 const authRoutes=require("./routes/authRoutes");
 const userRoutes = require('./routes/userRoutes');
+const { snapAllTollsToRoads } = require('./utils/snapTolls'); // ⬅️ Import snap module
+
 
 const app = express();
 
@@ -24,14 +26,21 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
 Promise.all([loadNHAIData(), tfw()])
-  .then(([nhaiData, cityPairs]) => {
-    setNHAIData(nhaiData);
-    setTfw(cityPairs);
-    console.log('Both NHAI and city toll data loaded');
-    app.listen(process.env.PORT || 5000, () => {
-      console.log(`Server is running on port ${process.env.PORT || 5000}`);
-    });
-  })
+.then(async ([nhaiData, cityPairs]) => {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+  // ⬇️ Snap all NHAI tolls to roads (DISABLED for performance)
+  // const snappedTolls = await snapAllTollsToRoads(nhaiData, apiKey);
+  // console.log('✅ Snapped tolls to nearest roads');
+
+  setNHAIData(nhaiData); // ⬅️ Use raw data, not snapped
+  setTfw(cityPairs);
+
+  console.log('Both NHAI and city toll data loaded');
+  app.listen(process.env.PORT || 5000, () => {
+    console.log(`Server is running on port ${process.env.PORT || 5000}`);
+  });
+})
   .catch(err => {
     console.error('Error loading toll data:', err);
   });

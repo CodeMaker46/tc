@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 const saveRoute = async (req, res) => {
   try {
     const { source, destination, price, userId } = req.body;
-    if (!source || !destination || !price || !userId) {
+    if (!source || !destination || price === undefined || price === null || !userId) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
     const route = await Route.create({
