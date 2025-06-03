@@ -7,10 +7,7 @@ let tfw = {};
 
 const setNHAIData = (data) => {
   nhaiData = data;
-};
-
-const setTfw = (pairs) => {
-  tfw = pairs;
+  // console.log("NHAI Data set in tollRoutes.js and nhaidata : ",nhaiData);
 };
 
 router.post('/calculate-toll', (req, res) => {
