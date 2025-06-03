@@ -2,11 +2,11 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/database');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 dotenv.config();
 connectDB();
-
 
 app.use(cors({
     origin: '*',
@@ -16,13 +16,13 @@ app.use(cors({
     maxAge: 600
 }));
 
-
 app.use(express.json());
+
+// Routes
+app.use('/api/users', userRoutes);
 
 app.get('/', (req,res)=>{
     res.send('Server is running...');
-})
-
-
+});
 
 module.exports = app;

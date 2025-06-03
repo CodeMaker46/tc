@@ -6,6 +6,8 @@ const crypto = require('crypto');
 const nodemailer=require("nodemailer");
 const PendingUser=require('../models/pendingUser');
 const admin = require('../utils/firebaseAdmin');
+const cloudinary = require('../utils/cloudinary');
+const axios = require('axios');
 
 
 const transporter = nodemailer.createTransport({
@@ -96,7 +98,7 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-   //console.log('jkjkj',user);
+
     // Compare password with hashed password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
@@ -108,15 +110,17 @@ exports.login = async (req, res) => {
       expiresIn: '1d',
     });
 
+    // Send response with user data
     return res.status(200).json({
-  message: 'Login successful',
-  token,
-  user: {
-    id: user._id,
-    name: user.name,
-    email: user.email,
-  },
-});
+      message: 'Login successful',
+      token,
+      user: {
+        _id: user._id.toString(), // Convert ObjectId to string
+        name: user.name,
+        email: user.email,
+        profileImage: user.profileImage || ''
+      }
+    });
   } catch (error) {
     console.error('Login error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -196,6 +200,84 @@ exports.resetPassword = async (req, res) => {
   await user.save();
 
   res.status(200).json({ message: 'Password reset successful' });
+};
+
+exports.googleLogin = async (req, res) => {
+  try {
+    const { email, name, googleId, profileImage } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Find user by email or create new user
+    let user = await User.findOne({ email });
+    let cloudinaryUrl = '';
+
+    // If profile image URL is provided and we need to update it
+    if (profileImage && (!user || !user.profileImage)) {
+      try {
+        // Download image from Google
+        const imageResponse = await axios.get(profileImage, {
+          responseType: 'arraybuffer'
+        });
+        const base64Image = Buffer.from(imageResponse.data).toString('base64');
+
+        // Upload to Cloudinary
+        const uploadResponse = await cloudinary.uploader.upload(
+          `data:image/jpeg;base64,${base64Image}`,
+          {
+            folder: 'profile_pictures',
+            use_filename: true,
+            unique_filename: true,
+          }
+        );
+        cloudinaryUrl = uploadResponse.secure_url;
+      } catch (error) {
+        console.error('Error uploading Google profile image to Cloudinary:', error);
+        // Continue with login even if image upload fails
+      }
+    }
+
+    if (!user) {
+      // Create new user in your DB with Google info
+      user = await User.create({
+        name: name || 'User',
+        email,
+        googleId,
+        profileImage: cloudinaryUrl || '', // Use Cloudinary URL instead of Google URL
+        password: null // no password for Google users
+      });
+    } else {
+      // Update existing user's Google ID and profile image if not set
+      if (!user.googleId || !user.profileImage) {
+        user.googleId = googleId;
+        if (!user.profileImage && cloudinaryUrl) {
+          user.profileImage = cloudinaryUrl;
+        }
+        await user.save();
+      }
+    }
+
+    // Create JWT token
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: '1d'
+    });
+
+    return res.status(200).json({
+      message: 'Login successful',
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        profileImage: user.profileImage
+      }
+    });
+  } catch (error) {
+    console.error('Google login error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 };
 
 

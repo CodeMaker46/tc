@@ -27,26 +27,38 @@ export default function Auth() {
     try {
       console.log('Starting Google login...');
       const result = await signInWithPopup(auth, googleProvider);
-  
+
       const idToken = await result.user.getIdToken();
-      console.log('Google login successful:', {
-        userEmail: result.user.email,
-        userName: result.user.displayName,
-        hasIdToken: !!idToken
+      
+      // Send Google user data to our backend
+      const res = await fetch(`${backendUrl}/api/auth/google-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: result.user.email,
+          name: result.user.displayName,
+          googleId: result.user.uid,
+          profileImage: result.user.photoURL
+        })
       });
-  
-      // Save token and name locally
-      localStorage.setItem('token', idToken);
-      localStorage.setItem('name', result.user.displayName || 'User');
-  
-      toast.success('Google login successful!');
-      navigate('/');
+
+      const data = await res.json();
+      
+      if (res.ok) {
+        // Save our backend token and user data
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('name', result.user.displayName || 'User');
+        localStorage.setItem('userId', data.user._id);
+        localStorage.setItem('email', result.user.email);
+        localStorage.setItem('profileImage', data.user.profileImage || result.user.photoURL);
+
+        toast.success('Google login successful!');
+        navigate('/');
+      } else {
+        throw new Error(data.message || 'Failed to login with Google');
+      }
     } catch (error) {
-      console.error('Google login error details:', {
-        code: error.code,
-        message: error.message,
-        fullError: error
-      });
+      console.error('Google login error:', error);
       toast.error('Error logging in with Google');
     } finally {
       setIsLoading(false);
@@ -65,12 +77,14 @@ export default function Auth() {
         body: JSON.stringify({ email: form.email, password: form.password }),
       });
       const data = await res.json();
-      console.log(data);
 
       if (res.ok) {
-        const token = data.token;
-        localStorage.setItem('token', token);
-        localStorage.setItem('name',data.user.name)
+        // Save user data to localStorage
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('name', data.user.name);
+        localStorage.setItem('userId', data.user._id);
+        localStorage.setItem('email', data.user.email);
+        localStorage.setItem('profileImage', data.user.profileImage || '');
 
         toast.success('Login successful!');
         navigate('/');
@@ -78,7 +92,7 @@ export default function Auth() {
         toast.error(data.message || 'Login failed');
       }
     } catch (err) {
-      console.error(err);
+      console.error('Login error:', err);
       toast.error('Error logging in');
     } finally {
       setIsLoading(false);

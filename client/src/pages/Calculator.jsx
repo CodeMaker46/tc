@@ -4,6 +4,8 @@ import MapContainer from '../components/MapContainer';
 import { calculateToll } from '../utils/api';
 import { useRoute } from '../context/RouteContext';
 import{ React } from 'react';
+import axios from 'axios';
+import { toast } from 'react-toastify';
 
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
@@ -51,17 +53,40 @@ const Calculator = () => {
     setIsLoading(true); 
 
     try {
-      const response = await calculateToll(source,destination,vehicleType);
+      // Calculate toll
+      const response = await calculateToll(source, destination, vehicleType);
       setShowResults(true);
       setRouteData(response);
+      
       // Save route data to localStorage
       localStorage.setItem('routeData', JSON.stringify(response));
-      // console.log("Response Data:", response);
-      
+
+      // Save route to backend
+      const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('userId');
+      if (token && userId && response.routes && response.routes.length > 0) {
+        try {
+          // Get the selected route or default to first route
+          const selectedRoute = response.routes[0];
+          await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/users/routes`, {
+            source,
+            destination,
+            price: selectedRoute.totalToll || 0,
+            userId
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          toast.success('Route saved to history!');
+        } catch (error) {
+          console.error('Error saving route:', error);
+          toast.error('Failed to save route to history');
+        }
+      }
     } catch (error) {
       console.error("Error:", error);
-    }finally {
-      setIsLoading(false);       // stop loading once done
+      toast.error('Failed to calculate toll');
+    } finally {
+      setIsLoading(false);
     }
   };
 
