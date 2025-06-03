@@ -173,17 +173,17 @@ const getTollRate = (toll, vehicleType = 'Car') => {
   return parseFloat(toll[key]) || 0;
 };
 
-const haversineDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // km
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
+// const haversineDistance = (lat1, lon1, lat2, lon2) => {
+//   const R = 6371; // km
+//   const dLat = toRad(lat2 - lat1);
+//   const dLon = toRad(lon2 - lon1);
+//   const a =
+//     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+//     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+//     Math.sin(dLon / 2) * Math.sin(dLon / 2);
+//   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+//   return R * c;
+// };
 
 // Helper to interpolate points between two lat/lngs
 function interpolatePoints(p1, p2, numPoints) {
@@ -224,27 +224,13 @@ const getTollData = async (req, res, nhaiData, tfw) => {
     }
 
     // Process all alternative routes
-<<<<<<< HEAD
     const routeResults = await Promise.all(routes.map(async (route, routeIndex) => {
       // --- Old logic: get tolls by bounding box + direction ---
-=======
-
-    const routeResults = routes.map((route, routeIndex) => {
-      
->>>>>>> 9eb950d (changes)
       const steps = route.legs[0].steps;
       const geoPoints = steps.map(step => ({
         lat: step.start_location.lat,
         lng: step.start_location.lng,
       }));
-<<<<<<< HEAD
-=======
-
-      console.log("geoPoints : ", geoPoints);
-
-
-      // Add the final destination point
->>>>>>> 9eb950d (changes)
       if (steps.length > 0) {
         const lastStep = steps[steps.length - 1];
         geoPoints.push({
@@ -256,24 +242,11 @@ const getTollData = async (req, res, nhaiData, tfw) => {
       for (let i = 0; i < geoPoints.length - 1; i++) {
         const pointA = geoPoints[i];
         const pointB = geoPoints[i + 1];
-<<<<<<< HEAD
         const bbox = getBoundingBoxWithBuffer(pointA, pointB, 0.5); // 0.5km buffer
         const tollsInBox = findNHAITollsInBoundingBox(bbox, nhaiData).filter(toll => {
           const tollPoint = { lat: parseFloat(toll.Latitude), lng: parseFloat(toll.Longitude) };
           return isTollInDirection(pointA, pointB, tollPoint);
         });
-=======
-
-        // Create a bounding box for this segment with a buffer (0.5 km)
-        const bbox = getBoundingBoxWithBuffer(pointA, pointB, 0.5);
-
-        const tollsInBox = findNHAITollsInBoundingBox(bbox, nhaiData);
-
-
-        //  console.log(`Tolls found in box for segment ${i}:`, tollsInBox.length);
-
-        // Add unique tolls to our verified list
->>>>>>> 9eb950d (changes)
         tollsInBox.forEach(toll => {
           if (!tollsOld.some(t => t.name === toll.Tollname)) {
             tollsOld.push({
@@ -287,10 +260,6 @@ const getTollData = async (req, res, nhaiData, tfw) => {
             });
           }
         });
-<<<<<<< HEAD
-=======
-        // console.log("Tolls on/near polyline:", tollsOnLineSegment);
->>>>>>> 9eb950d (changes)
       }
       // --- Snap the route ---
       const polylinePoints = route.overview_polyline.points;
