@@ -88,7 +88,7 @@ const getTollRate = (toll, vehicleType = 'Car') => {
     '7 or More Axle Truck': 'Sevenormoreexel Single',
   };
 
-  
+
   const key = rateKeyMap[vehicleType] || 'Car Rate Single';
 
   // Return the parsed float value or 0 if missing
@@ -96,7 +96,7 @@ const getTollRate = (toll, vehicleType = 'Car') => {
 };
 
 
-const getTollData = async (req, res, nhaiData) => {
+const getTollData = async (req, res, nhaiData, tfw) => {
   const { origin, destination, vehicleType = 'Car' } = req.body;
 
   if (!origin || !destination) {
@@ -118,7 +118,7 @@ const getTollData = async (req, res, nhaiData) => {
     const googleRes = await axios.get(directionsURL);
     const routes = googleRes.data.routes;
 
-    console.log("Routes : ", routes);
+    // console.log("Routes : ", routes);
 
     if (!routes || routes.length === 0) {
       return res.status(404).json({ error: 'Route not found' });
@@ -133,7 +133,8 @@ const getTollData = async (req, res, nhaiData) => {
         lat: step.start_location.lat,
         lng: step.start_location.lng,
       }));
-      
+
+
       // Add the final destination point
       if (steps.length > 0) {
         const lastStep = steps[steps.length - 1];
@@ -143,20 +144,21 @@ const getTollData = async (req, res, nhaiData) => {
         });
       }
 
-     
+
       const tollsVerified = [];
 
       // Step 2: For each segment between two points, check for tolls
       for (let i = 0; i < geoPoints.length - 1; i++) {
         const pointA = geoPoints[i];
         const pointB = geoPoints[i + 1];
-        
+
         // Create a bounding box for this segment with a buffer
-        const bbox = getBoundingBoxWithBuffer(pointA, pointB, 1); // 1km buffer
-        
+        const bbox = getBoundingBoxWithBuffer(pointA, pointB, 5); // 1km buffer
+
         // Find NHAI tolls within this bounding box
         const tollsInBox = findNHAITollsInBoundingBox(bbox, nhaiData);
-        
+        //  console.log(`Tolls found in box for segment ${i}:`, tollsInBox.length);
+
         // Add unique tolls to our verified list
         tollsInBox.forEach(toll => {
           // Check if this toll is already in our list
@@ -172,29 +174,59 @@ const getTollData = async (req, res, nhaiData) => {
             });
           }
         });
+        console.log("Tolls Verified: ", tollsVerified);
       }
 
-      // console.log("Tolls verified for route:", routeIndex, tollsVerified);
+let totalToll = 0;
+const covered = new Set(); 
 
-      // Calculate total toll for this route
-      const totalToll = tollsVerified.reduce((sum, toll) => sum + toll.rate, 0);
+
+for (let i = 0; i < tollsVerified.length - 1; i++) {
+  const tollA = tollsVerified[i];
+  const tollB = tollsVerified[i + 1];
+  const edgeKey = `${tollA.name}|${tollB.name}`;
+
+  if (tfw[edgeKey] !== undefined) {
+    console.log("price", tfw[edgeKey][vehicleType]);
+    totalToll += parseFloat(tfw[edgeKey][vehicleType]) || 0;
+    covered.add(tollA.name);
+    console.log(`Using TFW pair: ${tollA.name} - ${tollB.name} with rate ${parseFloat(tfw[edgeKey][vehicleType])}`);
+    covered.add(tollB.name);
+  //  f[edgeKey] = true;
+  } else if(!covered.has(tollA.name)) {
+    console.log(`Using single toll: ${tollA.name} with rate ${parseFloat(tollA.rate)}`);
+    totalToll += parseFloat(tollA.rate) || 0;
+    covered.add(tollA.name);
+  }
+}
+
+
+const lastToll = tollsVerified[tollsVerified.length - 1];
+if (!covered.has(lastToll.name)) {
+  totalToll += parseFloat(lastToll.rate) || 0;
+}
+
+     // const totalToll = tollsVerified.reduce((sum, toll) => sum + toll.rate, 0);
 
       return {
         routeIndex,
-        polyline : route.overview_polyline,
-        legs : route.legs,
+        
+        polyline: route.overview_polyline,
+        legs: route.legs,
         distance: route.legs[0].distance.text,
         duration: route.legs[0].duration.text,
         tolls: tollsVerified,
         totalToll
       };
     });
+    
 
     // Sort routes by total toll (ascending)
     routeResults.sort((a, b) => a.totalToll - b.totalToll);
 
     return res.json({
       vehicleType,
+    
       routes: routeResults,
       cheapestRoute: routeResults[0],
       fastestRoute: routeResults.reduce((fastest, route) => {

@@ -83,8 +83,8 @@ const RouteResults = ({
           </div>
           <div className="text-right">
             <div className="text-lg font-semibold text-gray-900">
-              ₹{route.totalToll?.toFixed(2) ?? '0.00'}
-            </div>
+    ₹{typeof route.totalToll === 'number' ? route.totalToll.toFixed(2) : '0.00'}
+  </div>
             <div className="text-sm text-gray-500">Total Toll</div>
           </div>
         </div>
