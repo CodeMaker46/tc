@@ -160,10 +160,6 @@ const MapContainer = () => {
       })}
 
       
-
-      
-
-      
     </GoogleMap>
   );
 };

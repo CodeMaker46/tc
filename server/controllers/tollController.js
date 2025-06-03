@@ -1,9 +1,69 @@
 const axios = require('axios');
-
+const turf = require('@turf/turf');
 
 // Utility: Convert degrees to radians
-const toRad = deg => (deg * Math.PI) / 180;
 const toDeg = rad => (rad * 180) / Math.PI;
+// Convert degrees to radians
+const toRad = deg => (deg * Math.PI) / 180;
+
+// Haversine distance (in km)
+const haversineDistance = (A, B) => {
+  const R = 6371;
+  const dLat = toRad(B.lat - A.lat);
+  const dLng = toRad(B.lng - A.lng);
+  const lat1 = toRad(A.lat);
+  const lat2 = toRad(B.lat);
+
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1) * Math.cos(lat2) *
+            Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Perpendicular distance from point to segment (using spherical approximation)
+const perpendicularDistance = (A, B, P) => {
+  const R = 6371; // km
+  const lat1 = toRad(A.lat), lon1 = toRad(A.lng);
+  const lat2 = toRad(B.lat), lon2 = toRad(B.lng);
+  const lat3 = toRad(P.lat), lon3 = toRad(P.lng);
+
+  const d13 = R * Math.acos(
+    Math.sin(lat1) * Math.sin(lat3) +
+    Math.cos(lat1) * Math.cos(lat3) * Math.cos(lon3 - lon1)
+  );
+
+  const theta13 = Math.atan2(
+    Math.sin(lon3 - lon1) * Math.cos(lat3),
+    Math.cos(lat1) * Math.sin(lat3) -
+    Math.sin(lat1) * Math.cos(lat3) * Math.cos(lon3 - lon1)
+  );
+
+  const theta12 = Math.atan2(
+    Math.sin(lon2 - lon1) * Math.cos(lat2),
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1)
+  );
+
+  const angle = theta13 - theta12;
+  return Math.abs(Math.asin(Math.sin(d13 / R) * Math.sin(angle)) * R);
+};
+
+// Final check if P is on segment AB
+function isPointOnSegment(A, B, P, threshold) {
+  const perpDist = perpendicularDistance(A, B, P);
+  if (perpDist > threshold) return false;
+
+  const distAB = haversineDistance(A, B);
+  const distAP = haversineDistance(A, P);
+  const distPB = haversineDistance(P, B);
+
+  // Allow small margin of error due to floating-point ops
+  return distAP + distPB <= distAB + 0.1;
+}
+
+
+
 
 // Compute a bounding box with a 1 km buffer on both sides of a segment
 const getBoundingBoxWithBuffer = (pointA, pointB, bufferKm = 0.02) => {
@@ -81,6 +141,8 @@ const isTollInDirection = (pointA, pointB, tollPoint) => {
 };
 
 
+
+
 // Find NHAI tolls within a bounding box
 const findNHAITollsInBoundingBox = (bbox, nhaiData) => {
   const [minLat, minLon, maxLat, maxLon] = bbox;
@@ -155,19 +217,34 @@ const getTollData = async (req, res, nhaiData, tfw) => {
 
     const googleRes = await axios.get(directionsURL);
     const routes = googleRes.data.routes;
+    // console.log("routes ",routes)
 
     if (!routes || routes.length === 0) {
       return res.status(404).json({ error: 'Route not found' });
     }
 
     // Process all alternative routes
+<<<<<<< HEAD
     const routeResults = await Promise.all(routes.map(async (route, routeIndex) => {
       // --- Old logic: get tolls by bounding box + direction ---
+=======
+
+    const routeResults = routes.map((route, routeIndex) => {
+      
+>>>>>>> 9eb950d (changes)
       const steps = route.legs[0].steps;
       const geoPoints = steps.map(step => ({
         lat: step.start_location.lat,
         lng: step.start_location.lng,
       }));
+<<<<<<< HEAD
+=======
+
+      console.log("geoPoints : ", geoPoints);
+
+
+      // Add the final destination point
+>>>>>>> 9eb950d (changes)
       if (steps.length > 0) {
         const lastStep = steps[steps.length - 1];
         geoPoints.push({
@@ -179,11 +256,24 @@ const getTollData = async (req, res, nhaiData, tfw) => {
       for (let i = 0; i < geoPoints.length - 1; i++) {
         const pointA = geoPoints[i];
         const pointB = geoPoints[i + 1];
+<<<<<<< HEAD
         const bbox = getBoundingBoxWithBuffer(pointA, pointB, 0.5); // 0.5km buffer
         const tollsInBox = findNHAITollsInBoundingBox(bbox, nhaiData).filter(toll => {
           const tollPoint = { lat: parseFloat(toll.Latitude), lng: parseFloat(toll.Longitude) };
           return isTollInDirection(pointA, pointB, tollPoint);
         });
+=======
+
+        // Create a bounding box for this segment with a buffer (0.5 km)
+        const bbox = getBoundingBoxWithBuffer(pointA, pointB, 0.5);
+
+        const tollsInBox = findNHAITollsInBoundingBox(bbox, nhaiData);
+
+
+        //  console.log(`Tolls found in box for segment ${i}:`, tollsInBox.length);
+
+        // Add unique tolls to our verified list
+>>>>>>> 9eb950d (changes)
         tollsInBox.forEach(toll => {
           if (!tollsOld.some(t => t.name === toll.Tollname)) {
             tollsOld.push({
@@ -197,6 +287,10 @@ const getTollData = async (req, res, nhaiData, tfw) => {
             });
           }
         });
+<<<<<<< HEAD
+=======
+        // console.log("Tolls on/near polyline:", tollsOnLineSegment);
+>>>>>>> 9eb950d (changes)
       }
       // --- Snap the route ---
       const polylinePoints = route.overview_polyline.points;
