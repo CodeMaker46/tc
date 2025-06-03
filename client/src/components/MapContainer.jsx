@@ -41,7 +41,7 @@ const MapContainer = () => {
     const foundTolls = selectedRoute.tolls || [];
     setTolls(foundTolls);
 
-    const polylinePoints = selectedRoute.polyline.points;
+    const polylinePoints = selectedRoute?.polyline?.points;
 
     if (!polylinePoints) {
       console.warn('No polyline points found.');

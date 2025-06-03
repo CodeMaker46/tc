@@ -3,13 +3,9 @@ import RouteResults from '../components/RouteResults';
 import MapContainer from '../components/MapContainer';
 import { calculateToll } from '../utils/api';
 import { useRoute } from '../context/RouteContext';
-<<<<<<< HEAD
 import{ React } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-=======
-import{ React ,useRef} from 'react';
->>>>>>> 5bc88f8 (changes in map)
 
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
@@ -64,7 +60,6 @@ const Calculator = () => {
   
       // Save route data to localStorage
       localStorage.setItem('routeData', JSON.stringify(response));
-<<<<<<< HEAD
   
       // Save route to backend
       const token = localStorage.getItem('token');
@@ -72,6 +67,7 @@ const Calculator = () => {
   
       // Set selectedRouteIndex to 0 if not found
       let selectedRouteIndex = parseInt(localStorage.getItem('selectedRouteIndex'));
+      
       if (isNaN(selectedRouteIndex)) {
         selectedRouteIndex = 0;
         localStorage.setItem('selectedRouteIndex', selectedRouteIndex.toString());
@@ -94,14 +90,6 @@ const Calculator = () => {
           toast.error('Failed to save route to history');
         }
       }
-=======
-
-      const ind = localStorage.getItem('selectedRouteIndex');
-
-      setSelectedRouteIndex(ind ? parseInt(ind) : 0); // Set selected route index to 0 if not found
-      // console.log("Response Data:", response);
-      
->>>>>>> 5bc88f8 (changes in map)
     } catch (error) {
       console.error("Error:", error);
       toast.error('Failed to calculate toll');
@@ -250,30 +238,6 @@ const handleEditJourney = () => {
             </button>
           </div>
 
-<<<<<<< HEAD
-=======
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left side - Route options */}
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900">Route Options</h2>
-                <button
-                  onClick={() => handleEditJourney()}
-                  className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium flex items-center space-x-2"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                  <span>Edit Journey</span>
-                </button>
-              </div>
-              <RouteResults
-                source={source}
-                destination={destination}
-                vehicleType={vehicleType}
-              />
-            </div>
->>>>>>> 5bc88f8 (changes in map)
 
           <div>
   <label htmlFor="source" className="block text-sm font-medium text-gray-700">
