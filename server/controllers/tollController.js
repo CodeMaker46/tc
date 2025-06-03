@@ -6,7 +6,7 @@ const toRad = deg => (deg * Math.PI) / 180;
 const toDeg = rad => (rad * 180) / Math.PI;
 
 // Compute a bounding box with a 1 km buffer on both sides of a segment
-const getBoundingBoxWithBuffer = (pointA, pointB, bufferKm = 1) => {
+const getBoundingBoxWithBuffer = (pointA, pointB, bufferKm = 0.5) => {
   const R = 6371; // Earth radius in km
   const { lat: lat1, lng: lon1 } = pointA;
   const { lat: lat2, lng: lon2 } = pointB;
@@ -65,6 +65,21 @@ const isPointInBoundingBox = (lat, lon, bbox) => {
   const [minLat, minLon, maxLat, maxLon] = bbox;
   return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
 };
+
+const isTollInDirection = (pointA, pointB, tollPoint) => {
+  const routeVec = {
+    lat: pointB.lat - pointA.lat,
+    lng: pointB.lng - pointA.lng
+  };
+  const tollVec = {
+    lat: tollPoint.lat - pointA.lat,
+    lng: tollPoint.lng - pointA.lng
+  };
+  // Dot product to check directionality
+  const dot = routeVec.lat * tollVec.lat + routeVec.lng * tollVec.lng;
+  return dot > 0; // true if toll is in the forward direction along the segment
+};
+
 
 // Find NHAI tolls within a bounding box
 const findNHAITollsInBoundingBox = (bbox, nhaiData) => {
@@ -153,10 +168,13 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         const pointB = geoPoints[i + 1];
 
         // Create a bounding box for this segment with a buffer
-        const bbox = getBoundingBoxWithBuffer(pointA, pointB, 5); // 1km buffer
+        const bbox = getBoundingBoxWithBuffer(pointA, pointB, 0.5); // 0.5km buffer
 
         // Find NHAI tolls within this bounding box
-        const tollsInBox = findNHAITollsInBoundingBox(bbox, nhaiData);
+        const tollsInBox = findNHAITollsInBoundingBox(bbox, nhaiData).filter(toll => {
+          const tollPoint = { lat: parseFloat(toll.Latitude), lng: parseFloat(toll.Longitude) };
+          return isTollInDirection(pointA, pointB, tollPoint);
+        });
         //  console.log(`Tolls found in box for segment ${i}:`, tollsInBox.length);
 
         // Add unique tolls to our verified list
@@ -210,9 +228,8 @@ if (!covered.has(lastToll.name)) {
 
       return {
         routeIndex,
-        
-        polyline: route.overview_polyline,
-        legs: route.legs,
+        // polyline: route.overview_polyline,
+        // legs: route.legs,
         distance: route.legs[0].distance.text,
         duration: route.legs[0].duration.text,
         tolls: tollsVerified,
@@ -226,7 +243,6 @@ if (!covered.has(lastToll.name)) {
 
     return res.json({
       vehicleType,
-    
       routes: routeResults,
       cheapestRoute: routeResults[0],
       fastestRoute: routeResults.reduce((fastest, route) => {

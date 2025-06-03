@@ -2,6 +2,7 @@ import {
   GoogleMap,
   useLoadScript,
   Marker,
+  InfoWindow,
 } from '@react-google-maps/api';
 import { useEffect, useRef, useState } from 'react';
 import { useRoute } from '../context/RouteContext';
@@ -12,43 +13,48 @@ const containerStyle = {
 };
 
 const MapContainer = () => {
-  const { routeData, selectedRouteIndex } = useRoute();
+  const { routeData, selectedRouteIndex, mapRef, polylineRef } = useRoute();
+  const [tolls, setTolls] = useState(null);
+ 
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: ['geometry'],
   });
 
-  const mapRef = useRef(null);
-  const polylineRef = useRef(null); // <-- Track the Polyline instance
-
   const [startLoc, setStartLoc] = useState(null);
   const [endLoc, setEndLoc] = useState(null);
+  const [hoveredTollIndex, setHoveredTollIndex] = useState(null);
+
+  // Add debugging
+  useEffect(() => {
+    console.log('Tolls data:', tolls);
+    console.log('Hovered toll index:', hoveredTollIndex);
+    if (hoveredTollIndex !== null && tolls[hoveredTollIndex]) {
+      console.log('Hovered toll data:', tolls[hoveredTollIndex]);
+    }
+  }, [tolls, hoveredTollIndex]);
 
   useEffect(() => {
     if (!isLoaded || !routeData?.routes || selectedRouteIndex == null) return;
-
     const selectedRoute = routeData.routes[selectedRouteIndex];
-    if (!selectedRoute) return;
+    const foundTolls = selectedRoute.tolls || [];
+    setTolls(foundTolls);
 
-    const polylinePoints =
-      selectedRoute?.overview_polyline?.points || selectedRoute?.polyline?.points;
+    const polylinePoints = selectedRoute.polyline.points;
 
     if (!polylinePoints) {
-      console.warn('No polyline points found for the selected route.');
+      console.warn('No polyline points found.');
       return;
     }
 
     if (window.google?.maps?.geometry?.encoding && mapRef.current) {
-      // Decode polyline
       const decodedPath = window.google.maps.geometry.encoding.decodePath(polylinePoints);
 
-      // Remove the previous polyline from the map
       if (polylineRef.current) {
         polylineRef.current.setMap(null);
       }
 
-      // Create a new polyline
       const newPolyline = new window.google.maps.Polyline({
         path: decodedPath,
         strokeColor: '#1976d2',
@@ -56,11 +62,8 @@ const MapContainer = () => {
         strokeWeight: 5,
       });
 
-      // Set it on the map
       newPolyline.setMap(mapRef.current);
       polylineRef.current = newPolyline;
-    } else {
-      console.warn('Google Maps geometry library not loaded or map not initialized.');
     }
 
     const legs = selectedRoute.legs;
@@ -69,16 +72,40 @@ const MapContainer = () => {
       setEndLoc(legs[legs.length - 1].end_location);
     }
 
-    // Cleanup
     return () => {
       if (polylineRef.current) {
         polylineRef.current.setMap(null);
         polylineRef.current = null;
       }
+      // Clear any pending timeouts
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
       setStartLoc(null);
       setEndLoc(null);
+      setHoveredTollIndex(null);
     };
   }, [isLoaded, routeData, selectedRouteIndex]);
+
+  // Handle mouse events with debouncing to prevent multiple InfoWindows
+  const hoverTimeoutRef = useRef(null);
+
+  const handleTollMouseOver = (index) => {
+    // Clear any existing timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    console.log('Mouse over toll:', index);
+    setHoveredTollIndex(index);
+  };
+
+  const handleTollMouseOut = () => {
+    // Add a small delay before hiding to prevent flickering
+    hoverTimeoutRef.current = setTimeout(() => {
+      console.log('Mouse out');
+      setHoveredTollIndex(null);
+    }, 100);
+  };
 
   if (loadError) return <div>Error loading map</div>;
   if (!isLoaded) return <div>Loading map...</div>;
@@ -94,6 +121,41 @@ const MapContainer = () => {
     >
       {startLoc && <Marker position={startLoc} label="S" />}
       {endLoc && <Marker position={endLoc} label="D" />}
+
+      {/* Toll markers with improved hover handling */}
+      {tolls?.map((toll, index) => {
+        // Add validation for toll data
+        if (!toll || !toll.location || 
+            typeof toll.location.lat !== 'number' || 
+            typeof toll.location.lng !== 'number') {
+          console.warn(`Invalid toll data at index ${index}:`, toll);
+          return null;
+        }
+
+        return (
+          <Marker
+            key={`toll-${index}`} // Better key
+            position={{ 
+              lat: Number(toll.location.lat), 
+              lng: Number(toll.location.lng) 
+            }}
+            label="🛣️" // More appropriate toll icon
+            onMouseOver={() => handleTollMouseOver(index)}
+            onMouseOut={handleTollMouseOut}
+            // Add click handler as backup
+            onClick={() => setHoveredTollIndex(index)}
+            options={{
+              title: '', // Remove title tooltip
+            }}
+          />
+        );
+      })}
+
+      
+
+      
+
+      
     </GoogleMap>
   );
 };

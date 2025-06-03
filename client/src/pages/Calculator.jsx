@@ -3,9 +3,13 @@ import RouteResults from '../components/RouteResults';
 import MapContainer from '../components/MapContainer';
 import { calculateToll } from '../utils/api';
 import { useRoute } from '../context/RouteContext';
+<<<<<<< HEAD
 import{ React } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+=======
+import{ React ,useRef} from 'react';
+>>>>>>> 5bc88f8 (changes in map)
 
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
@@ -25,7 +29,7 @@ const Calculator = () => {
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [translatedText, setTranslatedText] = useState('');
 
-  const {setRouteData, setIsLoading, isLoading} = useRoute();
+  const {routeData,setRouteData,selectedRouteIndex, setIsLoading, isLoading,setSelectedRouteIndex,mapRef, polylineRef} = useRoute();
 
   // Load saved route data on component mount
   useEffect(() => {
@@ -60,6 +64,7 @@ const Calculator = () => {
   
       // Save route data to localStorage
       localStorage.setItem('routeData', JSON.stringify(response));
+<<<<<<< HEAD
   
       // Save route to backend
       const token = localStorage.getItem('token');
@@ -89,6 +94,14 @@ const Calculator = () => {
           toast.error('Failed to save route to history');
         }
       }
+=======
+
+      const ind = localStorage.getItem('selectedRouteIndex');
+
+      setSelectedRouteIndex(ind ? parseInt(ind) : 0); // Set selected route index to 0 if not found
+      // console.log("Response Data:", response);
+      
+>>>>>>> 5bc88f8 (changes in map)
     } catch (error) {
       console.error("Error:", error);
       toast.error('Failed to calculate toll');
@@ -128,6 +141,21 @@ const Calculator = () => {
     SpeechRecognition.stopListening();
   }
 };
+
+const handleEditJourney = () => {
+  setShowResults(false);
+  setSource('');
+  setDestination('');
+  setIntermediateStops([]);
+  setVehicleType('Car');
+  setVehicleNumber('');
+  setShowVehicleNumber(false);
+  setRouteData(null); 
+  setSelectedRouteIndex(null); // Reset selected route index
+  localStorage.removeItem('selectedRouteIndex'); // Clear saved selected route index
+  localStorage.removeItem('routeData'); // Clear saved route data
+  localStorage.removeItem('showResults'); // Clear showResults state
+}
 
 
   return (
@@ -222,6 +250,30 @@ const Calculator = () => {
             </button>
           </div>
 
+<<<<<<< HEAD
+=======
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left side - Route options */}
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900">Route Options</h2>
+                <button
+                  onClick={() => handleEditJourney()}
+                  className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium flex items-center space-x-2"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  <span>Edit Journey</span>
+                </button>
+              </div>
+              <RouteResults
+                source={source}
+                destination={destination}
+                vehicleType={vehicleType}
+              />
+            </div>
+>>>>>>> 5bc88f8 (changes in map)
 
           <div>
   <label htmlFor="source" className="block text-sm font-medium text-gray-700">
@@ -366,41 +418,9 @@ const Calculator = () => {
       </select>
     </div>
 
-                    {/* {vehicleType === 'truck' && (
-                      <div>
-                        <label htmlFor="axleCount" className="block text-sm font-medium text-gray-700">
-                          Number of Axles
-                        </label>
-                        <select
-                          id="axleCount"
-                          value={axleCount}
-                          onChange={(e) => setAxleCount(e.target.value)}
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        >
-                          {[2, 3, 4, 5, 6, 7].map(num => (
-                            <option key={num} value={num}>{num} Axles</option>
-                          ))}
-                        </select>
-                      </div>
-                    )} */}
+                    
 
-                    {/* <div>
-                      <label htmlFor="fuelType" className="block text-sm font-medium text-gray-700">
-                        Fuel Type
-                      </label>
-                      <select
-                        id="fuelType"
-                        value={fuelType}
-                        onChange={(e) => setFuelType(e.target.value)}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        disabled={vehicleType === 'truck'}
-                      >
-                        <option value="diesel">Diesel</option>
-                        <option value="petrol">Petrol</option>
-                        <option value="cng">CNG</option>
-                        <option value="electric">Electric</option>
-                      </select>
-                    </div> */}
+                    
                   </div>
                 )}
               </div>
