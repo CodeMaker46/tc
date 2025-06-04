@@ -110,12 +110,12 @@ Route Planning
 Interactive map interface
 Real-time route visualization
 Multiple route alternatives
-Voice input support
 Toll Calculation
 Accurate toll plaza detection
 Vehicle type-based pricing
 Total route cost calculation
 Alternative route comparison
+
 API Endpoints
 Authentication Routes
 POST /api/auth/register - User registration
