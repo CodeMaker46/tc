@@ -87,15 +87,15 @@ const decodePolyline = (encoded) => {
 };
 
 // Improved interpolation with configurable density
-const improveRoutePoints = (decodedPath, intervalKm = 0.5) => {
+const improveRoutePoints = (decodedPath, intervalKm = 0.1) => {
   const improvedPoints = [decodedPath[0]];
   
   for (let i = 0; i < decodedPath.length - 1; i++) {
     const p1 = decodedPath[i];
     const p2 = decodedPath[i + 1];
     const distance = haversineDistance(p1.lat, p1.lng, p2.lat, p2.lng);
-    
-    // More reasonable interpolation - every 500m instead of 100m
+
+    // More reasonable interpolation - every 100m instead of 500m
     if (distance > intervalKm) {
       const numPoints = Math.ceil(distance / intervalKm);
       for (let j = 1; j < numPoints; j++) {
@@ -205,7 +205,7 @@ const findNearbyTolls = (routePoints, nhaiData, vehicleType, config = {}) => {
     const tollLon = parseFloat(toll.SnappedLongitude || toll.Longitude);
     
     if (isNaN(tollLat) || isNaN(tollLon)) {
-      console.log(`Skipping toll ${toll.Tollname} - invalid coordinates`);
+      // console.log(`Skipping toll ${toll.Tollname} - invalid coordinates`);
       continue;
     }
     
@@ -227,7 +227,7 @@ const findNearbyTolls = (routePoints, nhaiData, vehicleType, config = {}) => {
         verified: validation.confidence === 'high'
       });
       processedTolls.add(toll.Tollname);
-      console.log(`Found toll: ${toll.Tollname} (${validation.confidence} confidence, ${validation.distance.toFixed(3)}km)`);
+      // console.log(`Found toll: ${toll.Tollname} (${validation.confidence} confidence, ${validation.distance.toFixed(3)}km)`);
     }
   }
   
@@ -260,7 +260,7 @@ const filterUniqueRouteTolls = (routeResults, config = {}) => {
   tollToRoutes.forEach((routes, tollKey) => {
     if (routes.length === routeResults.length) {
       // This toll appears on ALL routes - likely a data issue
-      console.log(`Removing toll that appears on all routes: ${routes[0].toll.name}`);
+      // console.log(`Removing toll that appears on all routes: ${routes[0].toll.name}`);
       routes.forEach(({ routeIndex }) => {
         routeResults[routeIndex].tolls = routeResults[routeIndex].tolls.filter(t => 
           `${t.location.lat.toFixed(4)},${t.location.lng.toFixed(4)}` !== tollKey
@@ -296,7 +296,7 @@ const getTollData = async (req, res, nhaiData, tfw) => {
       return res.status(500).json({ error: 'Google Maps API key is not set' });
     }
     
-    console.log(`Processing route from ${origin} to ${destination}`);
+   // console.log(`Processing route from ${origin} to ${destination}`);
     
     // Get directions from Google Maps
     const directionsURL = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&alternatives=true&mode=driving&key=${apiKey}`;
@@ -307,13 +307,13 @@ const getTollData = async (req, res, nhaiData, tfw) => {
       return res.status(404).json({ error: 'Route not found' });
     }
 
-    console.log(`Found ${routes.length} alternative routes`);
+    // console.log(`Found ${routes.length} alternative routes`);
 
     // Process up to 3 routes
     const limitedRoutes = routes.slice(0, 3);
     
     const routeResults = await Promise.all(limitedRoutes.map(async (route, routeIndex) => {
-      console.log(`Processing route ${routeIndex + 1}`);
+      // console.log(`Processing route ${routeIndex + 1}`);
       
       const decodedPath = decodePolyline(route.overview_polyline.points);
       const improvedPoints = improveRoutePoints(decodedPath);
@@ -358,14 +358,14 @@ const getTollData = async (req, res, nhaiData, tfw) => {
       if (lastToll && !covered.has(lastToll.name)) {
         totalToll += parseFloat(lastToll.rate) || 0;
       }
-      
+    //  console.log("Tolls in order:", tollsInOrder);
       return {
         routeIndex,
         polyline: route.overview_polyline,
         legs: route.legs,
         distance: route.legs[0].distance.text,
         duration: route.legs[0].duration.text,
-        tolls: verifiedTolls,
+        tolls: tollsInOrder,
         tollsVerified: verifiedTolls.filter(t => t.confidence === 'high'),
         tollsUnverified: verifiedTolls.filter(t => t.confidence === 'medium'),
         totalToll,
@@ -378,42 +378,55 @@ const getTollData = async (req, res, nhaiData, tfw) => {
     
     // Recalculate toll costs after filtering - MAINTAIN ORIGINAL ORDER
     finalRouteResults.forEach(route => {
-      let totalToll = 0;
-      const covered = new Set();
-      
-      // Keep tolls in their original order (no sorting by latitude)
-      const tollsInOrder = [...route.tolls];
-      
-      for (let i = 0; i < tollsInOrder.length - 1; i++) {
-        const tollA = tollsInOrder[i];
-        const tollB = tollsInOrder[i + 1];
-        
-        const sortedNames = [tollA.name, tollB.name].sort();
-        const edgeKey = `${sortedNames[0]}|${sortedNames[1]}`;
-        
-        if (tfw[edgeKey] !== undefined) {
-          totalToll += parseFloat(tfw[edgeKey][vehicleType]) || 0;
-          covered.add(tollA.name);
-          covered.add(tollB.name);
-          continue;
-        }
-        
-        if (!covered.has(tollA.name)) {
-          totalToll += parseFloat(tollA.rate) || 0;
-          covered.add(tollA.name);
-        }
+  let totalToll = 0;
+  const covered = new Set();
+
+  const tollsInOrder = [...route.tolls];
+
+  for (let i = 0; i < tollsInOrder.length - 1; i++) {
+    const tollA = tollsInOrder[i];
+    const tollB = tollsInOrder[i + 1];
+
+    const sortedNames = [tollA.name, tollB.name].sort();
+    const edgeKey = `${sortedNames[0]}|${sortedNames[1]}`;
+
+    if (tfw[edgeKey] !== undefined) {
+      totalToll += parseFloat(tfw[edgeKey][vehicleType]) || 0;
+      covered.add(tollA.name);
+      covered.add(tollB.name);
+      //console.log(`Using TFW edge for ${edgeKey}: ${tfw[edgeKey][vehicleType]}`);
+      // Ensure both tolls are in the list (only if not already present)
+      if (!tollsInOrder.find(t => t.name === tollA.name)) {
+        tollsInOrder.push(tollA);
       }
-      
-      const lastToll = tollsInOrder[tollsInOrder.length - 1];
-      if (lastToll && !covered.has(lastToll.name)) {
-        totalToll += parseFloat(lastToll.rate) || 0;
+      if (!tollsInOrder.find(t => t.name === tollB.name)) {
+        tollsInOrder.push(tollB);
       }
-      
-      route.totalToll = totalToll;
-    });
+
+      // Do NOT use continue here — allow fallback tollA addition if needed
+    }
+
+    // Fallback: Add tollA rate if not already covered
+    if (!covered.has(tollA.name)) {
+     // console.log(`Adding tollA: ${tollA.name} with rate ${tollA.rate}`);
+      totalToll += parseFloat(tollA.rate) || 0;
+      covered.add(tollA.name);
+    }
+  }
+
+  const lastToll = tollsInOrder[tollsInOrder.length - 1];
+  if (lastToll && !covered.has(lastToll.name)) {
+    totalToll += parseFloat(lastToll.rate) || 0;
+  }
+
+  route.totalToll = totalToll;
+});
+
+    //console.log("nfdf",finalRouteResults);
 
     // Sort routes by total toll (ascending)
     finalRouteResults.sort((a, b) => a.totalToll - b.totalToll);
+   // console.log("finalrds",finalRouteResults);
 
     // console.log('Route processing completed');
     

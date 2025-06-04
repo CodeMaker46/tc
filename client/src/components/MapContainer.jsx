@@ -37,11 +37,13 @@ const MapContainer = () => {
     if (isLoaded && routeData?.routes?.length > 0 && selectedRouteIndex === -1) {
       setSelectedRouteIndex(0);
       const selectedRoute = routeData.routes[selectedRouteIndex];
-      const foundTolls = selectedRoute?.tollsVerified || [];
+      const foundTolls = selectedRoute?.tolls|| [];
       setTolls(foundTolls);
+
     }
   }, [isLoaded, routeData, selectedRouteIndex]);
-
+  console.log("tolls found",tolls);
+  console.log("data", routeData);
   // Step 2: Handle drawing, tolls, start/end based on selected route
   useEffect(() => {
     if (
@@ -53,7 +55,7 @@ const MapContainer = () => {
       return;
 
     const selectedRoute = routeData.routes[selectedRouteIndex];
-    const foundTolls = selectedRoute?.tollsVerified || [];
+    const foundTolls = selectedRoute?.tolls|| [];
     setTolls(foundTolls);
 
     const polylinePoints = selectedRoute?.polyline?.points;

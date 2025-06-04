@@ -65,7 +65,7 @@ const Calculator = () => {
       const token = localStorage.getItem('token');
       const userId = localStorage.getItem('userId');
 
-
+    
 
 
       if (setSelectedRouteIndex !== -1 && token && userId && response.routes && response.routes.length > 0) {
@@ -78,7 +78,7 @@ const Calculator = () => {
             price: selectedRoute.totalToll || 0,
             userId
           };
-          console.log('Saving route payload:', payload);
+         // console.log('Saving route payload:', payload);
           // Prevent POST if any required field is missing
           if (!payload.source || !payload.destination || !payload.userId || payload.price === undefined) {
             toast.error('Missing required route data. Cannot save route.');
