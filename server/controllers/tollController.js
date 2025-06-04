@@ -59,7 +59,6 @@ const calculateBearing = (lat1, lon1, lat2, lon2) => {
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
 };
 
-// Optimized: decode polyline only
 const decodePolyline = (encoded) => {
   let points = [];
   let index = 0, len = encoded.length;
@@ -87,8 +86,8 @@ const decodePolyline = (encoded) => {
   return points;
 };
 
-// Ultra-precise interpolation for maximum accuracy
-const improveRoutePoints = (decodedPath) => {
+// Improved interpolation with configurable density
+const improveRoutePoints = (decodedPath, intervalKm = 0.5) => {
   const improvedPoints = [decodedPath[0]];
   
   for (let i = 0; i < decodedPath.length - 1; i++) {
@@ -96,9 +95,9 @@ const improveRoutePoints = (decodedPath) => {
     const p2 = decodedPath[i + 1];
     const distance = haversineDistance(p1.lat, p1.lng, p2.lat, p2.lng);
     
-    // Ultra-fine interpolation - every 100 meters for precision
-    if (distance > 0.1) {
-      const numPoints = Math.ceil(distance / 0.1);
+    // More reasonable interpolation - every 500m instead of 100m
+    if (distance > intervalKm) {
+      const numPoints = Math.ceil(distance / intervalKm);
       for (let j = 1; j < numPoints; j++) {
         const ratio = j / numPoints;
         improvedPoints.push({
@@ -113,138 +112,91 @@ const improveRoutePoints = (decodedPath) => {
   return improvedPoints;
 };
 
-// Calculate perpendicular distance from point to line segment
-const pointToLineDistance = (px, py, x1, y1, x2, y2) => {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const length = Math.sqrt(dx * dx + dy * dy);
+// Simplified and more lenient toll validation
+const isTollNearRoute = (tollLat, tollLon, routePoints, maxDistanceKm = 0.2) => {
+  let minDistance = Infinity;
   
-  if (length === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+  // Check distance to all route points
+  for (const point of routePoints) {
+    const distance = haversineDistance(point.lat, point.lng, tollLat, tollLon);
+    minDistance = Math.min(minDistance, distance);
+    
+    // Early exit if we find a close point
+    if (distance <= maxDistanceKm) {
+      return true;
+    }
+  }
   
-  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (length * length)));
-  const projection = {
-    x: x1 + t * dx,
-    y: y1 + t * dy
-  };
-  
-  return Math.sqrt((px - projection.x) ** 2 + (py - projection.y) ** 2);
+  return false;
 };
 
-// Advanced: Check if toll is on the exact route with direction validation
-const isTollOnExactRoute = (tollLat, tollLon, routePoints) => {
-  let minPerpendicularDistance = Infinity;
-  let bestSegmentIndex = -1;
-  let closestPointOnRoute = null;
+// More sophisticated perpendicular distance calculation
+const getMinDistanceToRoute = (tollLat, tollLon, routePoints) => {
+  let minDistance = Infinity;
   
-  // Find the closest segment and perpendicular distance
+  // Check distance to route segments (not just points)
   for (let i = 0; i < routePoints.length - 1; i++) {
     const p1 = routePoints[i];
     const p2 = routePoints[i + 1];
     
-    // Convert to meters for accurate calculation
-    const scale = 111000; // approximate meters per degree
-    const cosLat = Math.cos(toRad((p1.lat + p2.lat) / 2));
-    
-    const tollLatM = tollLat * scale;
-    const tollLonM = tollLon * scale * cosLat;
-    const p1LatM = p1.lat * scale;
-    const p1LonM = p1.lng * scale * cosLat;
-    const p2LatM = p2.lat * scale;
-    const p2LonM = p2.lng * scale * cosLat;
-    
-    const perpDistance = pointToLineDistance(
-      tollLatM, tollLonM,
-      p1LatM, p1LonM,
-      p2LatM, p2LonM
-    );
-    
-    if (perpDistance < minPerpendicularDistance) {
-      minPerpendicularDistance = perpDistance;
-      bestSegmentIndex = i;
-      
-      // Calculate closest point on this segment
-      const dx = p2.lng - p1.lng;
-      const dy = p2.lat - p1.lat;
-      const length = Math.sqrt(dx * dx + dy * dy);
-      
-      if (length > 0) {
-        const t = Math.max(0, Math.min(1, 
-          ((tollLon - p1.lng) * dx + (tollLat - p1.lat) * dy) / (length * length)
-        ));
-        closestPointOnRoute = {
-          lat: p1.lat + t * dy,
-          lng: p1.lng + t * dx
-        };
-      }
-    }
+    // Calculate distance to line segment
+    const segmentDistance = pointToLineSegmentDistance(tollLat, tollLon, p1.lat, p1.lng, p2.lat, p2.lng);
+    minDistance = Math.min(minDistance, segmentDistance);
   }
   
-  // Reject if perpendicular distance > 30 meters
-  if (minPerpendicularDistance > 30) return false;
-  
-  // Additional check: Verify route direction consistency
-  if (bestSegmentIndex >= 0 && closestPointOnRoute) {
-    const p1 = routePoints[bestSegmentIndex];
-    const p2 = routePoints[bestSegmentIndex + 1];
-    
-    // Calculate route bearing at this segment
-    const routeBearing = calculateBearing(p1.lat, p1.lng, p2.lat, p2.lng);
-    
-    // Calculate bearing from closest route point to toll
-    const tollBearing = calculateBearing(closestPointOnRoute.lat, closestPointOnRoute.lng, tollLat, tollLon);
-    
-    // Check if toll is roughly perpendicular to route (not along it)
-    const bearingDiff = Math.abs(routeBearing - tollBearing);
-    const normalizedDiff = Math.min(bearingDiff, 360 - bearingDiff);
-    
-    // Toll should be roughly perpendicular (60-120 degrees) to route direction
-    // This helps eliminate tolls on parallel routes
-    if (normalizedDiff < 60 || normalizedDiff > 120) {
-      return false; // Toll is too aligned with route direction (likely parallel road)
-    }
-  }
-  
-  return true;
+  return minDistance;
 };
 
-// Route-specific toll validation with parallel route elimination
-const validateTollForRoute = (tollLat, tollLon, routePoints, allRoutePoints = []) => {
-  // Step 1: Basic distance check
-  let minDistanceToRoute = Infinity;
-  for (const point of routePoints) {
-    const distance = haversineDistance(point.lat, point.lng, tollLat, tollLon);
-    minDistanceToRoute = Math.min(minDistanceToRoute, distance);
+// Improved point to line segment distance calculation
+const pointToLineSegmentDistance = (px, py, x1, y1, x2, y2) => {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  
+  if (dx === 0 && dy === 0) {
+    // Line segment is a point
+    return haversineDistance(px, py, x1, y1);
   }
   
-  // Must be within 30m of the specific route
-  if (minDistanceToRoute > 0.03) return false;
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+  const projectionX = x1 + t * dx;
+  const projectionY = y1 + t * dy;
   
-  // Step 2: Check if toll is much closer to another route (parallel route detection)
-  if (allRoutePoints.length > 0) {
-    for (const otherRoutePoints of allRoutePoints) {
-      if (otherRoutePoints === routePoints) continue; // Skip same route
-      
-      let minDistanceToOtherRoute = Infinity;
-      for (const point of otherRoutePoints) {
-        const distance = haversineDistance(point.lat, point.lng, tollLat, tollLon);
-        minDistanceToOtherRoute = Math.min(minDistanceToOtherRoute, distance);
-      }
-      
-      // If toll is significantly closer to another route, reject it
-      if (minDistanceToOtherRoute < minDistanceToRoute * 0.7) {
-        return false;
-      }
-    }
-  }
-  
-  // Step 3: Strict geometric alignment
-  return isTollOnExactRoute(tollLat, tollLon, routePoints);
+  return haversineDistance(px, py, projectionX, projectionY);
 };
 
-// Enhanced: ultra-strict toll detection with parallel route elimination
-const findNearbyTolls = (routePoints, nhaiData, vehicleType, allRoutePoints = []) => {
+// Multi-tier validation approach
+const validateTollForRoute = (tollLat, tollLon, routePoints, config = {}) => {
+  const {
+    primaryDistanceKm = 0.1,    // Primary validation distance
+    secondaryDistanceKm = 0.2,  // Secondary validation distance
+  } = config;
+  
+  // Tier 1: Quick distance check
+  const minDistance = getMinDistanceToRoute(tollLat, tollLon, routePoints);
+  
+  if (minDistance <= primaryDistanceKm) {
+    return { valid: true, confidence: 'high', distance: minDistance };
+  }
+  
+  if (minDistance <= secondaryDistanceKm) {
+    return { valid: true, confidence: 'medium', distance: minDistance };
+  }
+  
+  return { valid: false, confidence: 'low', distance: minDistance };
+};
+
+// Relaxed toll finding with configurable strictness
+const findNearbyTolls = (routePoints, nhaiData, vehicleType, config = {}) => {
+  const {
+    strictMode = false,
+    includeMediumConfidence = true,
+    maxDistanceKm = 0.2
+  } = config;
+  
   const nearbyTolls = [];
   const processedTolls = new Set();
+  
+  // console.log(`Searching for tolls near route with ${routePoints.length} points`);
   
   for (const toll of nhaiData) {
     if (processedTolls.has(toll.Tollname)) continue;
@@ -252,32 +204,51 @@ const findNearbyTolls = (routePoints, nhaiData, vehicleType, allRoutePoints = []
     const tollLat = parseFloat(toll.SnappedLatitude || toll.Latitude);
     const tollLon = parseFloat(toll.SnappedLongitude || toll.Longitude);
     
-    if (isNaN(tollLat) || isNaN(tollLon)) continue;
+    if (isNaN(tollLat) || isNaN(tollLon)) {
+      console.log(`Skipping toll ${toll.Tollname} - invalid coordinates`);
+      continue;
+    }
     
-    // Ultra-strict validation with parallel route check
-    if (validateTollForRoute(tollLat, tollLon, routePoints, allRoutePoints)) {
+    const validation = validateTollForRoute(tollLat, tollLon, routePoints, {
+      primaryDistanceKm: strictMode ? 0.1 : 0.2,
+      secondaryDistanceKm: maxDistanceKm,
+      enableBearingCheck: strictMode,
+      enableParallelCheck: strictMode
+    });
+    
+    if (validation.valid && (validation.confidence === 'high' || (includeMediumConfidence && validation.confidence === 'medium'))) {
       nearbyTolls.push({
         name: toll.Tollname,
         location: { lat: tollLat, lng: tollLon },
         rate: getTollRate(toll, vehicleType),
         projectType: toll.Projecttype,
-        verified: true
+        confidence: validation.confidence,
+        distance: validation.distance,
+        verified: validation.confidence === 'high'
       });
       processedTolls.add(toll.Tollname);
+      console.log(`Found toll: ${toll.Tollname} (${validation.confidence} confidence, ${validation.distance.toFixed(3)}km)`);
     }
   }
   
+  // console.log(`Found ${nearbyTolls.length} tolls for this route`);
   return nearbyTolls;
 };
 
-// Enhanced: Cross-route validation to eliminate shared tolls on parallel routes
-const filterUniqueRouteatolls = (routeResults) => {
+// Simplified cross-route validation
+const filterUniqueRouteTolls = (routeResults, config = {}) => {
+  const { enableCrossRouteFiltering = false } = config;
+  
+  if (!enableCrossRouteFiltering) {
+    return routeResults; // Skip cross-route filtering
+  }
+  
   // Create a map of toll locations to routes
   const tollToRoutes = new Map();
   
   routeResults.forEach((route, routeIndex) => {
     route.tolls.forEach(toll => {
-      const key = `${toll.location.lat.toFixed(6)},${toll.location.lng.toFixed(6)}`;
+      const key = `${toll.location.lat.toFixed(4)},${toll.location.lng.toFixed(4)}`;
       if (!tollToRoutes.has(key)) {
         tollToRoutes.set(key, []);
       }
@@ -285,40 +256,15 @@ const filterUniqueRouteatolls = (routeResults) => {
     });
   });
   
-  // Remove tolls that appear on multiple routes (likely parallel route issues)
+  // Only remove tolls that appear on ALL routes (clearly wrong)
   tollToRoutes.forEach((routes, tollKey) => {
-    if (routes.length > 1) {
-      // This toll appears on multiple routes - remove from all except the closest
-      let closestRoute = null;
-      let minDistance = Infinity;
-      
-      routes.forEach(({ routeIndex, toll }) => {
-        const routePoints = routeResults[routeIndex].improvedPoints || [];
-        let distanceToRoute = Infinity;
-        
-        for (const point of routePoints) {
-          const distance = haversineDistance(
-            point.lat, point.lng, 
-            toll.location.lat, toll.location.lng
-          );
-          distanceToRoute = Math.min(distanceToRoute, distance);
-        }
-        
-        if (distanceToRoute < minDistance) {
-          minDistance = distanceToRoute;
-          closestRoute = routeIndex;
-        }
-      });
-      
-      // Remove toll from all routes except the closest one
-      routes.forEach(({ routeIndex, toll }) => {
-        if (routeIndex !== closestRoute) {
-          const routeResult = routeResults[routeIndex];
-          routeResult.tolls = routeResult.tolls.filter(t => 
-            t.location.lat !== toll.location.lat || t.location.lng !== toll.location.lng
-          );
-          routeResult.tollsVerified = routeResult.tolls;
-        }
+    if (routes.length === routeResults.length) {
+      // This toll appears on ALL routes - likely a data issue
+      console.log(`Removing toll that appears on all routes: ${routes[0].toll.name}`);
+      routes.forEach(({ routeIndex }) => {
+        routeResults[routeIndex].tolls = routeResults[routeIndex].tolls.filter(t => 
+          `${t.location.lat.toFixed(4)},${t.location.lng.toFixed(4)}` !== tollKey
+        );
       });
     }
   });
@@ -327,7 +273,14 @@ const filterUniqueRouteatolls = (routeResults) => {
 };
 
 const getTollData = async (req, res, nhaiData, tfw) => {
-  const { origin, destination, vehicleType = 'Car' } = req.body;
+  const { 
+    origin, 
+    destination, 
+    vehicleType = 'Car',
+    strictMode = true,
+    maxTollDistance = 0.5,
+    enableCrossRouteFiltering = false
+  } = req.body;
 
   if (!origin || !destination) {
     return res.status(400).json({ error: 'Origin and destination are required' });
@@ -343,8 +296,10 @@ const getTollData = async (req, res, nhaiData, tfw) => {
       return res.status(500).json({ error: 'Google Maps API key is not set' });
     }
     
-    // Single API call for directions
-    const directionsURL = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&alternatives=true&mode=driving&key=${apiKey}`;
+    console.log(`Processing route from ${origin} to ${destination}`);
+    
+    // Get directions from Google Maps
+    const directionsURL = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&alternatives=true&mode=driving&key=${apiKey}`;
     const googleRes = await axios.get(directionsURL);
     const routes = googleRes.data.routes;
 
@@ -352,30 +307,36 @@ const getTollData = async (req, res, nhaiData, tfw) => {
       return res.status(404).json({ error: 'Route not found' });
     }
 
-    // Prepare all route points for cross-validation
+    console.log(`Found ${routes.length} alternative routes`);
+
+    // Process up to 3 routes
     const limitedRoutes = routes.slice(0, 3);
-    const allImprovedPoints = [];
     
-    // First pass: decode and improve all routes
-    const routeData = limitedRoutes.map((route, routeIndex) => {
+    const routeResults = await Promise.all(limitedRoutes.map(async (route, routeIndex) => {
+      console.log(`Processing route ${routeIndex + 1}`);
+      
       const decodedPath = decodePolyline(route.overview_polyline.points);
       const improvedPoints = improveRoutePoints(decodedPath);
-      allImprovedPoints.push(improvedPoints);
-      return { route, improvedPoints, routeIndex };
-    });
-
-    // Second pass: find tolls with cross-route validation
-    const routeResults = await Promise.all(routeData.map(async ({ route, improvedPoints, routeIndex }) => {
-      // Find tolls with parallel route awareness
-      const verifiedTolls = findNearbyTolls(improvedPoints, nhaiData, vehicleType, allImprovedPoints);
       
-      // Calculate total toll cost
+      // console.log(`Route ${routeIndex + 1}: ${decodedPath.length} original points, ${improvedPoints.length} improved points`);
+      
+      // Find tolls with relaxed validation
+      const verifiedTolls = findNearbyTolls(improvedPoints, nhaiData, vehicleType, {
+        strictMode,
+        includeMediumConfidence: true,
+        maxDistanceKm: maxTollDistance
+      });
+      
+      // Calculate total toll cost - MAINTAIN ORIGINAL ORDER, NO SORTING
       let totalToll = 0;
       const covered = new Set();
       
-      for (let i = 0; i < verifiedTolls.length - 1; i++) {
-        const tollA = verifiedTolls[i];
-        const tollB = verifiedTolls[i + 1];
+      // Keep tolls in their original order (no sorting by latitude)
+      const tollsInOrder = [...verifiedTolls];
+      
+      for (let i = 0; i < tollsInOrder.length - 1; i++) {
+        const tollA = tollsInOrder[i];
+        const tollB = tollsInOrder[i + 1];
         
         const sortedNames = [tollA.name, tollB.name].sort();
         const edgeKey = `${sortedNames[0]}|${sortedNames[1]}`;
@@ -393,7 +354,7 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         }
       }
       
-      const lastToll = verifiedTolls[verifiedTolls.length - 1];
+      const lastToll = tollsInOrder[tollsInOrder.length - 1];
       if (lastToll && !covered.has(lastToll.name)) {
         totalToll += parseFloat(lastToll.rate) || 0;
       }
@@ -405,24 +366,27 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         distance: route.legs[0].distance.text,
         duration: route.legs[0].duration.text,
         tolls: verifiedTolls,
-        tollsVerified: verifiedTolls,
-        tollsUnverified: [],
+        tollsVerified: verifiedTolls.filter(t => t.confidence === 'high'),
+        tollsUnverified: verifiedTolls.filter(t => t.confidence === 'medium'),
         totalToll,
-        improvedPoints // Store for cross-validation
+        summary: route.summary || `Route ${routeIndex + 1}`
       };
     }));
 
-    // Third pass: eliminate shared tolls between routes
-    const finalRouteResults = filterUniqueRouteatolls(routeResults);
+    // Apply cross-route filtering if enabled
+    const finalRouteResults = filterUniqueRouteTolls(routeResults, { enableCrossRouteFiltering });
     
-    // Recalculate toll costs after filtering
+    // Recalculate toll costs after filtering - MAINTAIN ORIGINAL ORDER
     finalRouteResults.forEach(route => {
       let totalToll = 0;
       const covered = new Set();
       
-      for (let i = 0; i < route.tolls.length - 1; i++) {
-        const tollA = route.tolls[i];
-        const tollB = route.tolls[i + 1];
+      // Keep tolls in their original order (no sorting by latitude)
+      const tollsInOrder = [...route.tolls];
+      
+      for (let i = 0; i < tollsInOrder.length - 1; i++) {
+        const tollA = tollsInOrder[i];
+        const tollB = tollsInOrder[i + 1];
         
         const sortedNames = [tollA.name, tollB.name].sort();
         const edgeKey = `${sortedNames[0]}|${sortedNames[1]}`;
@@ -440,18 +404,19 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         }
       }
       
-      const lastToll = route.tolls[route.tolls.length - 1];
+      const lastToll = tollsInOrder[tollsInOrder.length - 1];
       if (lastToll && !covered.has(lastToll.name)) {
         totalToll += parseFloat(lastToll.rate) || 0;
       }
       
       route.totalToll = totalToll;
-      delete route.improvedPoints; // Clean up
     });
 
     // Sort routes by total toll (ascending)
     finalRouteResults.sort((a, b) => a.totalToll - b.totalToll);
 
+    // console.log('Route processing completed');
+    
     return res.json({
       vehicleType,
       routes: finalRouteResults,
@@ -460,7 +425,12 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         const currentDuration = parseDuration(route.duration);
         const fastestDuration = parseDuration(fastest.duration);
         return currentDuration < fastestDuration ? route : fastest;
-      }, finalRouteResults[0])
+      }, finalRouteResults[0]),
+      settings: {
+        strictMode,
+        maxTollDistance,
+        enableCrossRouteFiltering
+      }
     });
 
   } catch (error) {
