@@ -87,15 +87,15 @@ const decodePolyline = (encoded) => {
 };
 
 // Improved interpolation with configurable density
-const improveRoutePoints = (decodedPath, intervalKm = 0.5) => {
+const improveRoutePoints = (decodedPath, intervalKm = 0.1) => {
   const improvedPoints = [decodedPath[0]];
   
   for (let i = 0; i < decodedPath.length - 1; i++) {
     const p1 = decodedPath[i];
     const p2 = decodedPath[i + 1];
     const distance = haversineDistance(p1.lat, p1.lng, p2.lat, p2.lng);
-    
-    // More reasonable interpolation - every 500m instead of 100m
+
+    // More reasonable interpolation - every 100m instead of 500m
     if (distance > intervalKm) {
       const numPoints = Math.ceil(distance / intervalKm);
       for (let j = 1; j < numPoints; j++) {
@@ -205,7 +205,7 @@ const findNearbyTolls = (routePoints, nhaiData, vehicleType, config = {}) => {
     const tollLon = parseFloat(toll.SnappedLongitude || toll.Longitude);
     
     if (isNaN(tollLat) || isNaN(tollLon)) {
-      console.log(`Skipping toll ${toll.Tollname} - invalid coordinates`);
+      // console.log(`Skipping toll ${toll.Tollname} - invalid coordinates`);
       continue;
     }
     
@@ -227,7 +227,7 @@ const findNearbyTolls = (routePoints, nhaiData, vehicleType, config = {}) => {
         verified: validation.confidence === 'high'
       });
       processedTolls.add(toll.Tollname);
-      console.log(`Found toll: ${toll.Tollname} (${validation.confidence} confidence, ${validation.distance.toFixed(3)}km)`);
+      // console.log(`Found toll: ${toll.Tollname} (${validation.confidence} confidence, ${validation.distance.toFixed(3)}km)`);
     }
   }
   
@@ -260,7 +260,7 @@ const filterUniqueRouteTolls = (routeResults, config = {}) => {
   tollToRoutes.forEach((routes, tollKey) => {
     if (routes.length === routeResults.length) {
       // This toll appears on ALL routes - likely a data issue
-      console.log(`Removing toll that appears on all routes: ${routes[0].toll.name}`);
+      // console.log(`Removing toll that appears on all routes: ${routes[0].toll.name}`);
       routes.forEach(({ routeIndex }) => {
         routeResults[routeIndex].tolls = routeResults[routeIndex].tolls.filter(t => 
           `${t.location.lat.toFixed(4)},${t.location.lng.toFixed(4)}` !== tollKey
@@ -307,13 +307,13 @@ const getTollData = async (req, res, nhaiData, tfw) => {
       return res.status(404).json({ error: 'Route not found' });
     }
 
-    console.log(`Found ${routes.length} alternative routes`);
+    // console.log(`Found ${routes.length} alternative routes`);
 
     // Process up to 3 routes
     const limitedRoutes = routes.slice(0, 3);
     
     const routeResults = await Promise.all(limitedRoutes.map(async (route, routeIndex) => {
-      console.log(`Processing route ${routeIndex + 1}`);
+      // console.log(`Processing route ${routeIndex + 1}`);
       
       const decodedPath = decodePolyline(route.overview_polyline.points);
       const improvedPoints = improveRoutePoints(decodedPath);
