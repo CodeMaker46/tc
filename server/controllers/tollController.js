@@ -49,16 +49,25 @@ const getBoundingBoxWithBuffer = (pointA, pointB, bufferKm = 0.02) => {
   return [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)];
 };
 
-const parseDuration = (durationStr) => {
-  let totalHours = 0;
-  const dayMatch = durationStr.match(/(\d+)\s*day/);
-  const hourMatch = durationStr.match(/(\d+)\s*hour/);
+function parseDuration(durationStr) {
+  const regex = /(\d+)\s*hour[s]?/i;
+  const minRegex = /(\d+)\s*min[s]?/i;
 
-  if (dayMatch) totalHours += parseInt(dayMatch[1], 10) * 24;
-  if (hourMatch) totalHours += parseInt(hourMatch[1], 10);
+  let hours = 0, minutes = 0;
 
-  return totalHours;
-};
+  const hourMatch = durationStr.match(regex);
+  const minMatch = durationStr.match(minRegex);
+
+  if (hourMatch) {
+    hours = parseInt(hourMatch[1]);
+  }
+  if (minMatch) {
+    minutes = parseInt(minMatch[1]);
+  }
+
+  return hours * 60 + minutes; // Total in minutes
+}
+
 
 // Check if a point is inside a bounding box
 const isPointInBoundingBox = (lat, lon, bbox) => {
@@ -92,16 +101,15 @@ const findNHAITollsInBoundingBox = (bbox, nhaiData) => {
 };
 
 
-// Calculate toll rates based on vehicle type
 const getTollRate = (toll, vehicleType = 'Car') => {
   const rateKeyMap = {
     'Car': 'Car Rate Single',
     'Light Commercial Vehicle': 'Lcvrate Single',
-    'Bus': 'Busrate Multi',
-    'Multi-Axle Truck': 'Multiaxlerate Single',
-    'Heavy Commercial Vehicle': 'Hcm Eme Single',
-    '4 to 6 Axle Truck': 'Fourtosixexel Single',
-    '7 or More Axle Truck': 'Sevenormoreexel Single',
+    'Bus': 'Busrate Single',
+    '3 Axle Truck': 'Threeaxle Single',
+    'Heavy Commercial Vehicle': 'HCM EME Single',
+    '4 Axle Truck': 'Fouraxle Single',
+    '5 or More Axle Truck': 'Oversized Single',
   };
 
 
@@ -198,7 +206,9 @@ const getTollData = async (req, res, nhaiData, tfw) => {
           }
         });
       }
-      // --- Snap the route ---
+
+
+      // Snap the route polyline to roads
       const polylinePoints = route.overview_polyline.points;
       const decodePolyline = (encoded) => {
         let points = [];
@@ -227,7 +237,7 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         return points;
       };
       let decodedPath = decodePolyline(polylinePoints);
-      // Interpolate more points for denser path
+      
       let densePath = [];
       const INTERPOLATE_NUM = 5; // 4 extra points between each pair
       for (let i = 0; i < decodedPath.length - 1; i++) {
@@ -256,21 +266,27 @@ const getTollData = async (req, res, nhaiData, tfw) => {
           console.error('Snap to road failed:', snapToRoadError);
         }
       }
+
       // Remove duplicate snapped points
       const uniqueSnapped = snappedPoints.filter((pt, idx, arr) =>
         arr.findIndex(p => p.lat === pt.lat && p.lng === pt.lng) === idx
       );
+
       // --- Verify each toll ---
       tollsOld = tollsOld.map(toll => {
+
         // 1. Snap check (0.1km)
         const isVerifiedSnap = uniqueSnapped.some(pt => haversineDistance(pt.lat, pt.lng, toll.location.lat, toll.location.lng) < 0.01);
-        // 2. Fallback: if within 0.2km of any original polyline point
+
+        // 2. Fallback: if within 0.028km of any original polyline point
         const isVerifiedFallback = decodedPath.some(pt => haversineDistance(pt.lat, pt.lng, toll.location.lat, toll.location.lng) < 0.028);
         return { ...toll, verified: isVerifiedSnap || isVerifiedFallback };
       });
+      
       // Only keep verified tolls for price and map
       const verifiedTolls = tollsOld.filter(t => t.verified);
       const unverifiedTolls = tollsOld.filter(t => !t.verified);
+
       let totalToll = 0;
       const covered = new Set();
       // Helper to check if a toll is on the route
@@ -312,7 +328,6 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         tolls: verifiedTolls,
         tollsVerified: verifiedTolls,
         tollsUnverified: unverifiedTolls,
-        snapToRoadError,
         totalToll
       };
     }));
@@ -330,6 +345,7 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         return currentDuration < fastestDuration ? route : fastest;
       }, routeResults[0])
     });
+
 
   } catch (error) {
     console.error('Toll calc error:', error.message);

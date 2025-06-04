@@ -342,10 +342,10 @@ const Calculator = () => {
         <option value="Car">Car</option>
         <option value="Light Commercial Vehicle">Light Commercial Vehicle</option>
         <option value="Bus">Bus</option>
-        <option value="Multi-Axle Truck">Multi-Axle Truck</option>
+        <option value="3 Axle Truck">3 Axle Truck</option>
         <option value="Heavy Commercial Vehicle">Heavy Commercial Vehicle</option>
-        <option value="4 to 6 Axle Truck">4 to 6 Axle Truck</option>
-        <option value="7 or More Axle Truck">7 or More Axle Truck</option>
+        <option value="4 Axle Truck">4 Axle Truck</option>
+        <option value="5 or More Axle Truck">5 or More Axle Truck</option>
       </select>
     </div>
 
