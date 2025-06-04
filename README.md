@@ -1,1 +1,151 @@
-I'll create the full code for the README.md file. Let me prepare it using the get_file tool to ensure it's properly formatted.{"file":"# Toll Calculator (TC)\n\n## Overview\nA full-stack web application that calculates toll costs for different vehicle types along routes in India. The application integrates with Google Maps API for route planning and provides real-time toll fee calculations based on NHAI (National Highways Authority of India) data.\n\n## Features\n- 🗺️ Interactive route planning with Google Maps integration\n- 🚗 Support for multiple vehicle types:\n  - Car\n  - Light Commercial Vehicle\n  - Bus\n  - 3 Axle Truck\n  - Heavy Commercial Vehicle\n  - 4 Axle Truck\n  - 5 or More Axle Truck\n- 🔐 User authentication and profile management\n- 💰 Real-time toll cost calculation\n- 📱 Responsive design with Tailwind CSS\n- 🔄 Alternative route suggestions\n\n## Tech Stack\n\n### Frontend\n- React (Vite)\n- Tailwind CSS\n- React Router DOM\n- Firebase Authentication\n- @react-google-maps/api\n- React Speech Recognition\n- React Toastify\n\n### Backend\n- Node.js\n- Express.js\n- MongoDB (Mongoose)\n- Firebase Admin\n- JWT Authentication\n- Nodemailer\n- Cloudinary\n\n## Prerequisites\n- Node.js (latest LTS version)\n- MongoDB\n- Google Maps API Key\n- Firebase Project Configuration\n- Cloudinary Account\n\n## Installation\n\n### Frontend Setup\n```bash\ncd client\nnpm install\ncp .env.example .env\n# Add your environment variables\nnpm run dev\n```\n\n### Backend Setup\n```bash\ncd server\nnpm install\ncp .env.example .env\n# Add your environment variables\nnpm run dev\n```\n\n## Environment Variables\n\n### Frontend (.env)\n```\nVITE_FIREBASE_API_KEY=\nVITE_FIREBASE_AUTH_DOMAIN=\nVITE_FIREBASE_PROJECT_ID=\nVITE_FIREBASE_STORAGE_BUCKET=\nVITE_FIREBASE_MESSAGING_SENDER_ID=\nVITE_FIREBASE_APP_ID=\nVITE_GOOGLE_MAPS_API_KEY=\n```\n\n### Backend (.env)\n```\nMONGODB_URI=\nGOOGLE_MAPS_API_KEY=\nJWT_SECRET=\nCLOUDINARY_CLOUD_NAME=\nCLOUDINARY_API_KEY=\nCLOUDINARY_API_SECRET=\n```\n\n## Project Structure\n\n```\n├── client/                 # Frontend React application\n│   ├── src/\n│   │   ├── components/    # Reusable React components\n│   │   ├── pages/        # Page components\n│   │   ├── context/      # React context providers\n│   │   ├── hooks/        # Custom React hooks\n│   │   └── utils/        # Utility functions\n│   └── public/           # Static assets\n└── server/               # Backend Node.js application\n    ├── controllers/      # Route controllers\n    ├── models/          # MongoDB models\n    ├── routes/          # Express routes\n    └── utils/           # Utility functions\n```\n\n## Features Breakdown\n\n### Authentication\n- Email/Password registration and login\n- Password reset functionality\n- Protected routes\n- Profile management\n\n### Route Planning\n- Interactive map interface\n- Real-time route visualization\n- Multiple route alternatives\n- Voice input support\n\n### Toll Calculation\n- Accurate toll plaza detection\n- Vehicle type-based pricing\n- Total route cost calculation\n- Alternative route comparison\n\n## API Endpoints\n\n### Authentication Routes\n- POST `/api/auth/register` - User registration\n- POST `/api/auth/login` - User login\n- POST `/api/auth/forget-password` - Password reset request\n- POST `/api/auth/reset-password` - Password reset\n\n### Toll Routes\n- POST `/api/toll/calculate` - Calculate toll costs\n- GET `/api/toll/vehicle-types` - Get supported vehicle types\n\n### User Routes\n- GET `/api/user/profile` - Get user profile\n- PUT `/api/user/profile` - Update user profile\n\n## Contributing\n1. Fork the repository\n2. Create your feature branch (`git checkout -b feature/AmazingFeature`)\n3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)\n4. Push to the branch (`git push origin feature/AmazingFeature`)\n5. Open a Pull Request\n\n## License\nThis project is licensed under the ISC License.\n\n## Acknowledgements\n- Google Maps API\n- National Highways Authority of India (NHAI)\n- Firebase\n- MongoDB Atlas"}
+# Toll Calculator (TC)
+
+## Overview
+A full-stack web application that calculates toll costs for different vehicle types along routes in India. The application integrates with Google Maps API for route planning and provides real-time toll fee calculations based on NHAI (National Highways Authority of India) data.
+
+## Features
+- 🗺️ Interactive route planning with Google Maps integration
+- 🚗 Support for multiple vehicle types:
+  - Car
+  - Light Commercial Vehicle
+  - Bus
+  - 3 Axle Truck
+  - Heavy Commercial Vehicle
+  - 4 Axle Truck
+  - 5 or More Axle Truck
+- 🔐 User authentication and profile management
+- 💰 Real-time toll cost calculation
+- 📱 Responsive design with Tailwind CSS
+- 🔄 Alternative route suggestions
+
+## Tech Stack
+
+### Frontend
+- React (Vite)
+- Tailwind CSS
+- React Router DOM
+- Firebase Authentication
+- @react-google-maps/api
+- React Speech Recognition
+- React Toastify
+
+### Backend
+- Node.js
+- Express.js
+- MongoDB (Mongoose)
+- Firebase Admin
+- JWT Authentication
+- Nodemailer
+- Cloudinary
+
+## Prerequisites
+- Node.js (latest LTS version)
+- MongoDB
+- Google Maps API Key
+- Firebase Project Configuration
+- Cloudinary Account
+
+## Installation
+
+### Frontend Setup
+```bash
+cd client
+npm install
+cp .env.example .env
+# Add your environment variables
+npm run dev
+
+Backend Setup
+
+cd server
+npm install
+cp .env.example .env
+# Add your environment variables
+npm run dev
+
+
+Environment Variables
+Frontend (.env)
+
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_GOOGLE_MAPS_API_KEY=
+
+Backend (.env)
+
+MONGODB_URI=
+GOOGLE_MAPS_API_KEY=
+JWT_SECRET=
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+
+Project Structure
+
+├── client/               # Frontend React application
+│   ├── src/
+│   │   ├── components/   # Reusable React components
+│   │   ├── pages/        # Page components
+│   │   ├── context/      # React context providers
+│   │   ├── hooks/        # Custom React hooks
+│   │   └── utils/        # Utility functions
+│   └── public/           # Static assets
+└── server/               # Backend Node.js application
+    ├── controllers/      # Route controllers
+    ├── models/           # MongoDB models
+    ├── routes/           # Express routes
+    └── utils/            # Utility functions
+
+Features Breakdown
+Authentication
+Email/Password registration and login
+Password reset functionality
+Protected routes
+Profile management
+Route Planning
+Interactive map interface
+Real-time route visualization
+Multiple route alternatives
+Voice input support
+Toll Calculation
+Accurate toll plaza detection
+Vehicle type-based pricing
+Total route cost calculation
+Alternative route comparison
+API Endpoints
+Authentication Routes
+POST /api/auth/register - User registration
+POST /api/auth/login - User login
+POST /api/auth/forget-password - Password reset request
+POST /api/auth/reset-password - Password reset
+Toll Routes
+POST /api/toll/calculate - Calculate toll costs
+GET /api/toll/vehicle-types - Get supported vehicle types
+User Routes
+GET /api/user/profile - Get user profile
+PUT /api/user/profile - Update user profile
+Contributing
+Fork the repository
+Create your feature branch (git checkout -b feature/AmazingFeature)
+Commit your changes (git commit -m 'Add some AmazingFeature')
+Push to the branch (git push origin feature/AmazingFeature)
+Open a Pull Request
+License
+This project is licensed under the ISC License.
+
+Acknowledgements
+Google Maps API
+National Highways Authority of India (NHAI)
+Firebase
+MongoDB Atlas
+
+
+4. **Save the file** and commit it to your repository:
+```bash
+git add README.md
+git commit -m "docs: add comprehensive README"
+git push origin main
