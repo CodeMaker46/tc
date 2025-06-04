@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const nodemailer=require("nodemailer");
 const PendingUser=require('../models/pendingUser');
-const admin = require('../utils/firebaseAdmin');
+// const admin = require('../utils/firebaseAdmin');
 const cloudinary = require('../utils/cloudinary');
 const axios = require('axios');
 
@@ -124,44 +124,6 @@ exports.login = async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     return res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-//firebaselogin
-exports.firebaseLogin = async (req, res) => {
-  const { idToken } = req.body;
-
-  try {
-    // Verify the Firebase ID token
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    const { uid, email, name, picture } = decodedToken;
-
-    if (!email) {
-      return res.status(400).json({ error: 'No email found in Firebase token' });
-    }
-
-    // Find user by email or create new user
-    let user = await User.findOne({ email });
-
-    if (!user) {
-      // Create new user in your DB with Firebase info
-      user = await User.create({
-        name: name || 'No name',
-        email,
-        password: null, // no password for Firebase users
-        // optionally add profile picture or other Firebase info
-      });
-    }
-
-    // Issue your own JWT token for your app
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    });
-
-    res.status(200).json({ message: 'Login successful', token });
-  } catch (error) {
-    console.error('Firebase login error:', error);
-    res.status(401).json({ error: 'Invalid Firebase token' });
   }
 };
 
