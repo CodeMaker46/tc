@@ -9,7 +9,7 @@ const PendingUser=require('../models/pendingUser');
 // const admin = require('../utils/firebaseAdmin');
 const cloudinary = require('../utils/cloudinary');
 const axios = require('axios');
-const { em } = require('framer-motion/client');
+//const { em } = require('framer-motion/client');
 
 
 const transporter = nodemailer.createTransport({

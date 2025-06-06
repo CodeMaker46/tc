@@ -4,7 +4,7 @@ const bcrypt = require("bcrypt");
 const Admin = require("./models/Admin");
 
 // Use your provided MongoDB URI
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://deepravikaif:Gp82tq1eBlSVdp8a@cluster0.gks3k.mongodb.net/tollDB";
+const MONGO_URI = process.env.MONGO_URI;
 
 const createAdmin = async () => {
   try {

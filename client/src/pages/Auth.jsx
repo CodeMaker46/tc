@@ -155,7 +155,7 @@ const handleVerifyAdminOtp = async () => {
       localStorage.setItem("adminToken", data.token);
       localStorage.setItem("adminEmail", data.email);
       toast.success("Admin login successful!");
-      navigate("/admin/dashboard");
+      navigate("/");
     } else {
       toast.error(data.error || "Invalid OTP");
     }
