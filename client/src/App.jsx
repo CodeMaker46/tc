@@ -4,6 +4,7 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import Calculator from './pages/Calculator';
 import ForgetPassword from './components/ForgetPassword';
+import AdminLogin from './components/Admin';
 import ResetPassword from './components/ResetPassword';
 import Auth from './pages/Auth';
 import Profile from './pages/Profile';
@@ -19,6 +20,7 @@ function App() {
       <Routes>
         {/* Public Route */}
         <Route path="/auth" element={<Auth />} />
+        <Route path="/admin" element={<AdminLogin />} />
 
         {/* Layout Route */}
         <Route
@@ -32,6 +34,7 @@ function App() {
                   <Route path="/" element={<Home />} />
                   <Route path="/forget-password" element={<ForgetPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
+                  
                   {/* Protected Routes */}
                   <Route
                     path="/calculator"

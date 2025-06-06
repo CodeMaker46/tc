@@ -2,12 +2,14 @@ const User=require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-
+const Admin = require('../models/Admin');
+const otpStore = new Map();
 const nodemailer=require("nodemailer");
 const PendingUser=require('../models/pendingUser');
 // const admin = require('../utils/firebaseAdmin');
 const cloudinary = require('../utils/cloudinary');
 const axios = require('axios');
+const { em } = require('framer-motion/client');
 
 
 const transporter = nodemailer.createTransport({
@@ -126,6 +128,86 @@ exports.login = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+
+
+exports.adminlogin = async (req, res) => {
+  const { email, password } = req.body;
+  if(!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+   try {
+    const admin = await Admin.findOne({ email });
+
+    if (!admin)
+      return res.status(401).json({ message: 'Invalid credentials.' });
+
+    const validPassword = await bcrypt.compare(password, admin.password);
+    if (!validPassword)
+      return res.status(401).json({ message: 'Invalid credentials.' });
+
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes validity
+
+    // Store OTP
+    otpStore.set(email, { otp, expiresAt });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Admin Login OTP Verification',
+      text: `Your OTP for login is: ${otp}`,
+    });
+
+    return res.status(200).json({
+      message: 'OTP sent to your email. Please verify.',
+      email,
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+
+
+}
+
+
+exports.verifyAdminOtp = async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ error: 'Email and OTP are required' });
+  }
+
+  const storedOtpData = otpStore.get(email);
+  if (!storedOtpData) {
+    return res.status(400).json({ error: 'OTP not found or expired' });
+  }
+
+  const { otp: storedOtp, expiresAt } = storedOtpData;
+
+   if (storedOtp !== otp) {
+    return res.status(400).json({ error: 'Invalid OTP' });
+  }
+
+  if (Date.now() > expiresAt) {
+    otpStore.delete(email); // Remove expired OTP
+    return res.status(400).json({ error: 'OTP has expired' });
+  }
+
+  
+  const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+  // Clear OTP after successful verification
+  otpStore.delete(email);
+
+  return res.status(200).json({
+    message: 'OTP verified successfully',
+    token,
+    email,
+  });
+}
+
 
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;

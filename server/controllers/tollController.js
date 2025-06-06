@@ -23,19 +23,19 @@ function parseDuration(durationStr) {
   return hours * 60 + minutes; // Total in minutes
 }
 
-const getTollRate = (toll, vehicleType = 'Car') => {
+const getTollRate = (toll, vehicleType ) => {
   const rateKeyMap = {
-    'Car': 'Car Rate Single',
-    'Light Commercial Vehicle': 'Lcvrate Single',
-    'Bus': 'Busrate Single',
-    '3 Axle Truck': 'Threeaxle Single',
-    'Heavy Commercial Vehicle': 'HCM EME Single',
-    '4 Axle Truck': 'Fouraxle Single',
-    '5 or More Axle Truck': 'Oversized Single',
+    'Car': 'car',
+    'Light Commercial Vehicle': 'lcv',
+    'Bus': 'bus',
+    '3 Axle Truck': 'threeAxle',
+    '4 Axle Truck': 'fourAxle',
+    'Heavy Commercial Vehicle': 'hcmEme',
+    '5 or More Axle Truck': 'oversized'
   };
 
-  const key = rateKeyMap[vehicleType] || 'Car Rate Single';
-  return parseFloat(toll[key]) || 0;
+  const key = rateKeyMap[vehicleType] ;
+  return parseFloat(toll.tolls?.[key]) || 0;
 };
 
 const haversineDistance = (lat1, lon1, lat2, lon2) => {
@@ -187,7 +187,7 @@ const snapToRoads = async (points, apiKey) => {
     
     // Split points into optimal batches
     const batches = splitIntoBatches(points);
-    console.log(`📦 Split into ${batches.length} batches`);
+   // console.log(`📦 Split into ${batches.length} batches`);
     
     let snappedPoints = [];
     
@@ -225,11 +225,11 @@ const snapToRoads = async (points, apiKey) => {
       }
     }
     
-    console.log(`🎯 Road snapping completed: ${snappedPoints.length} total points`);
+  
     return snappedPoints;
     
   } catch (error) {
-    console.error('❌ Road snapping failed:', error.message);
+    console.error('Road snapping failed:', error.message);
     return points; // Fallback to original points
   }
 };
@@ -266,11 +266,11 @@ const processPolyline = async (encodedPolyline, apiKey) => {
   try {
     // First decode the polyline
     const decodedPoints = decodePolyline(encodedPolyline);
-    console.log(`📍 Decoded ${decodedPoints.length} points from polyline`);
+   // console.log(`📍 Decoded ${decodedPoints.length} points from polyline`);
     
     // Initial interpolation for better coverage
     const interpolatedPoints = interpolatePoints(decodedPoints, 0.3); // 300m between points
-    console.log(`📊 Interpolated to ${interpolatedPoints.length} points`);
+   // console.log(`📊 Interpolated to ${interpolatedPoints.length} points`);
     
     // Smart sampling based on route characteristics
     let sampledPoints = [];
@@ -321,10 +321,10 @@ const processPolyline = async (encodedPolyline, apiKey) => {
     if (snappedPoints && snappedPoints.length > 0) {
       // Final interpolation for smooth visualization
       const finalPoints = interpolatePoints(snappedPoints, 0.2); // 200m between points
-      console.log(`✨ Final route has ${finalPoints.length} road-aligned points`);
+      console.log(` Final route has ${finalPoints.length} road-aligned points`);
       return finalPoints;
     } else {
-      console.warn('⚠️ Road snapping failed, using original points');
+      console.warn(' Road snapping failed, using original points');
       return interpolatedPoints; // Return interpolated points as fallback
     }
     
@@ -529,86 +529,89 @@ const findNearbyTolls = (routePoints, nhaiData, vehicleType, config = {}) => {
   const {
     strictMode = false,
     includeMediumConfidence = true,
-    maxDistanceKm = 0.05 // Increased to 150 meters to catch slightly offset tolls
+    maxDistanceKm = 0.05, // 50 meters by default
   } = config;
-  
+
   const nearbyTolls = [];
   const processedTolls = new Set();
-  
-  console.log(`🔍 Searching for tolls near route with ${routePoints.length} points`);
-  
-  // First, ensure route points are properly ordered
+
+  // Add cumulative distance to route points if needed
   let orderedPoints = routePoints;
   if (routePoints.length > 2) {
-    // Calculate cumulative distances to ensure proper ordering
     let cumulativeDistance = 0;
     orderedPoints = routePoints.map((point, index) => {
       if (index > 0) {
         cumulativeDistance += haversineDistance(
-          routePoints[index-1].lat, routePoints[index-1].lng,
-          point.lat, point.lng
+          routePoints[index - 1].lat,
+          routePoints[index - 1].lng,
+          point.lat,
+          point.lng
         );
       }
       return { ...point, distance: cumulativeDistance };
     });
   }
-  
+
   for (const toll of nhaiData) {
-    if (processedTolls.has(toll.Tollname)) continue;
-    
-    const tollLat = parseFloat(toll.SnappedLatitude || toll.Latitude);
-    const tollLon = parseFloat(toll.SnappedLongitude || toll.Longitude);
-    
-    if (isNaN(tollLat) || isNaN(tollLon)) {
-      console.warn(`⚠️ Skipping toll ${toll.Tollname} - invalid coordinates`);
+    if (processedTolls.has(toll.name)) continue;
+
+    const tollLat = parseFloat(toll.lat);
+    const tollLng = parseFloat(toll.lng);
+
+    if (isNaN(tollLat) || isNaN(tollLng)) {
+      console.warn(`⚠️ Skipping toll ${toll.name} - invalid coordinates`);
       continue;
     }
-    
-    const validation = validateTollForRoute(tollLat, tollLon, orderedPoints, {
-      maxPerpendicularDistanceKm: strictMode ? 0.025 : maxDistanceKm, // 25m if strict, 50m otherwise
-      maxParallelDistanceKm: 0.1 // 100m parallel distance
+
+    const validation = validateTollForRoute(tollLat, tollLng, orderedPoints, {
+      maxPerpendicularDistanceKm: strictMode ? 0.025 : maxDistanceKm,
+      maxParallelDistanceKm: 0.1,
     });
-    
-    if (validation.valid && (validation.confidence === 'high' || (includeMediumConfidence && validation.confidence === 'medium'))) {
-      // Find the nearest point on the route to this toll
+
+    if (
+      validation.valid &&
+      (validation.confidence === 'high' ||
+        (includeMediumConfidence && validation.confidence === 'medium'))
+    ) {
+      // Find nearest segment index on the route
       let nearestSegmentIndex = 0;
       let minDist = Infinity;
-      
+
       for (let i = 0; i < orderedPoints.length - 1; i++) {
         const dist = pointToLineSegmentDistance(
-          tollLat, tollLon,
-          orderedPoints[i].lat, orderedPoints[i].lng,
-          orderedPoints[i+1].lat, orderedPoints[i+1].lng
+          tollLat,
+          tollLng,
+          orderedPoints[i].lat,
+          orderedPoints[i].lng,
+          orderedPoints[i + 1].lat,
+          orderedPoints[i + 1].lng
         );
+
         if (dist < minDist) {
           minDist = dist;
           nearestSegmentIndex = i;
         }
       }
-      
+
       nearbyTolls.push({
-        name: toll.Tollname,
-        location: { lat: tollLat, lng: tollLon },
+        name: toll.name,
+        location: { lat: tollLat, lng: tollLng },
         rate: getTollRate(toll, vehicleType),
-        projectType: toll.Projecttype,
+        projectType: toll.projectType || '', // adjust if you have this field or else ''
         confidence: validation.confidence,
         distance: validation.distance,
         verified: validation.confidence === 'high',
-        routeDistance: orderedPoints[nearestSegmentIndex].distance, // Distance along route
-        perpendicular_distance: minDist * 1000 // Convert to meters for display
+        routeDistance: orderedPoints[nearestSegmentIndex].distance || 0,
+        perpendicular_distance: minDist * 1000, // meters
       });
-      
-      processedTolls.add(toll.Tollname);
-      console.log(`✅ Found toll: ${toll.Tollname} (${validation.confidence} confidence, ${(minDist * 1000).toFixed(1)}m perpendicular)`);
+
+      processedTolls.add(toll.name);
+
+     
     }
-  }
-  
-  // Sort tolls by their position along the route
-  nearbyTolls.sort((a, b) => a.routeDistance - b.routeDistance);
-  
-  console.log(`✨ Found ${nearbyTolls.length} tolls for this route`);
+  };
   return nearbyTolls;
-};
+}
 
 // Simplified cross-route validation
 const filterUniqueRouteTolls = (routeResults, config = {}) => {
@@ -656,7 +659,8 @@ const getTollData = async (req, res, nhaiData, tfw) => {
     maxTollDistance = 0.5,
     enableCrossRouteFiltering = false
   } = req.body;
-
+  console.log("nhaisize",nhaiData.length)
+  console.log("tfwsize",tfw.length)
   if (!origin || !destination) {
     return res.status(400).json({ error: 'Origin and destination are required' });
   }
@@ -718,6 +722,7 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         includeMediumConfidence: true,
         maxDistanceKm: maxTollDistance
       });
+     // console.log("vt",verifiedTolls)
       
       // Encode points back to polyline format that Google Maps expects
       const encodePolyline = (points) => {
@@ -774,16 +779,19 @@ const getTollData = async (req, res, nhaiData, tfw) => {
         
         const sortedNames = [tollA.name, tollB.name].sort();
         const edgeKey = `${sortedNames[0]}|${sortedNames[1]}`;
+        //console.log(edgeKey)
         
         if (tfw[edgeKey] !== undefined) {
           totalToll += parseFloat(tfw[edgeKey][vehicleType]) || 0;
           covered.add(tollA.name);
+       //   console.log(`Using TFW edge for ${edgeKey}: ${tfw[edgeKey][vehicleType]}`);
           covered.add(tollB.name);
           continue;
         }
         
         if (!covered.has(tollA.name)) {
           totalToll += parseFloat(tollA.rate) || 0;
+         // console.log(`Adding tollA: ${tollA.name} with rate ${tollA.rate}`);
           covered.add(tollA.name);
         }
       }
