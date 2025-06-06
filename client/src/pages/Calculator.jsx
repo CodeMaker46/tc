@@ -6,371 +6,323 @@ import { useRoute } from '../context/RouteContext';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import usePlacesAutocomplete from '../hooks/usePlacesAutocomplete';
-
-
+import { motion } from 'framer-motion';
+import {
+  Search,
+  Navigation,
+  Zap,
+  TrendingDown,
+  Target,
+  AlertCircle,
+  History,
+  Bookmark,
+  Share2,
+  Calculator as CalcIcon,
+  ArrowUpDown,
+} from 'lucide-react';
 
 const Calculator = () => {
+  // State variables
   const [source, setSource] = useState(() => localStorage.getItem('source') || '');
   const [destination, setDestination] = useState(() => localStorage.getItem('destination') || '');
-  const [intermediateStops, setIntermediateStops] = useState(() => {
-    const saved = localStorage.getItem('intermediateStops');
-    return saved ? JSON.parse(saved) : [];
-  });
   const [showResults, setShowResults] = useState(() => localStorage.getItem('showResults') === 'true');
-  const [vehicleType, setVehicleType] = useState(() => localStorage.getItem('vehicleType') || 'Car');
-  const [axleCount, setAxleCount] = useState(() => localStorage.getItem('axleCount') || '2');
-  const [fuelType, setFuelType] = useState(() => localStorage.getItem('fuelType') || 'diesel');
-  const [showVehicleNumber, setShowVehicleNumber] = useState(() => localStorage.getItem('showVehicleNumber') === 'true');
-  const [vehicleNumber, setVehicleNumber] = useState(() => localStorage.getItem('vehicleNumber') || '');
-  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [vehicleType, setVehicleType] = useState(() => localStorage.getItem('vehicleType') || 'car');
+  const [routePreference, setRoutePreference] = useState('best'); // example
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [routes, setRoutes] = useState([]); // routes from API
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(-1);
 
-  const {tolls,setRouteData, setIsLoading, isLoading,setSelectedRouteIndex,selectedRouteIndex} = useRoute();
+  const { routeData,setRouteData, setIsLoading, isLoading, setSelectedRouteIndex: contextSetSelectedRouteIndex } = useRoute();
 
+  // Refs for autocomplete inputs
   const sourceRef = useRef();
   const destinationRef = useRef();
   usePlacesAutocomplete(sourceRef, setSource);
   usePlacesAutocomplete(destinationRef, setDestination);
   
-  
-
-  // Load saved route data on component mount
-  useEffect(() => {
-    const savedRouteData = localStorage.getItem('routeData');
-    if (savedRouteData) {
-      setRouteData(JSON.parse(savedRouteData));
-    }
-  }, [setRouteData]);
-
-  // Save form data to localStorage whenever it changes
+  // Save form data to localStorage when changed
   useEffect(() => {
     localStorage.setItem('source', source);
     localStorage.setItem('destination', destination);
-  }, [source, destination, intermediateStops, showResults, vehicleType, axleCount, fuelType, showVehicleNumber, vehicleNumber]);
+    localStorage.setItem('vehicleType', vehicleType);
+    localStorage.setItem('showResults', showResults.toString());
+  }, [source, destination, vehicleType, showResults]);
 
+  // Load saved route data on mount
+  useEffect(() => {
+    const savedRouteData = localStorage.getItem('routeData');
+    if (savedRouteData) {
+      const data = JSON.parse(savedRouteData);
+      setRoutes(data.routes || []);
+      setSelectedRouteIndex(data.selectedRouteIndex || -1);
+      setShowResults(true);
+      setRouteData(data);
+    }
+  }, [setRouteData]);
 
-
+  // Handle form submit to calculate toll/routes
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!source || !destination) {
+      toast.error('Please enter both source and destination');
+      return;
+    }
+    setIsCalculating(true);
     setIsLoading(true);
     
-  
     try {
-      
-      const response = await calculateToll(source, destination, vehicleType);
+      const response = await calculateToll(source, destination, vehicleType, routePreference);
+      // Assuming response structure: { routes: [...], otherData }
+
+      if (!response.routes || response.routes.length === 0) {
+        toast.error('No routes found');
+        setIsCalculating(false);
+        setIsLoading(false);
+        return;
+      }
+
+      setRoutes(response.routes);
+      setSelectedRouteIndex(0); // default select first route
       setShowResults(true);
-      localStorage.setItem('showResults', 'true');
-      setRouteData(response);
+
+      // Save to localStorage
       localStorage.setItem('routeData', JSON.stringify(response));
-      localStorage.setItem('polyline', response?.routes[selectedRouteIndex]?.polyline);
+      localStorage.setItem('showResults', 'true');
+
+      setRouteData(response);
+
+      // Optionally save to user history if logged in
       const token = localStorage.getItem('token');
       const userId = localStorage.getItem('userId');
-
-    
-
-
-      if (setSelectedRouteIndex !== -1 && token && userId && response.routes && response.routes.length > 0) {
-        try {
-          if(selectedRouteIndex ===-1) return;
-          const selectedRoute = response.routes[selectedRouteIndex] || response.routes[0];
+      if (token && userId) {
+        const selectedRoute = response.routes[0];
           const payload = {
             source,
             destination,
             price: selectedRoute.totalToll || 0,
-            userId
+          userId,
           };
-         // console.log('Saving route payload:', payload);
-          // Prevent POST if any required field is missing
-          if (!payload.source || !payload.destination || !payload.userId || payload.price === undefined) {
-            toast.error('Missing required route data. Cannot save route.');
-            return;
-          }
+
+        if (payload.source && payload.destination && payload.userId && payload.price !== undefined) {
           await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/users/routes`, payload, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
           });
           toast.success('Route saved to history!');
-        } catch (error) {
-          console.error('Error saving route:', error);
-          toast.error('Failed to save route to history');
         }
       }
     } catch (error) {
-      console.error("Error:", error);
+      console.error(error);
       toast.error('Failed to calculate toll');
     } finally {
+      setIsCalculating(false);
       setIsLoading(false);
     }
   };
-  // console.log("current tolls in the calculator",tolls)
 
-  const handleEditJourney = ()=>{
-    setShowResults(false);
-    setSelectedRouteIndex(-1);
-    localStorage.removeItem('routeData')
-    localStorage.removeItem('name')
-    localStorage.removeItem('routeData')
-    localStorage.removeItem('selectedRouteIndex')
-    localStorage.removeItem('tolls')
-    localStorage.removeItem('polyline')
-    localStorage.removeItem('map')
-    localStorage.removeItem('showResults');
-  }
+  // Handler to select route
+  const handleSelectRoute = (index) => {
+    setSelectedRouteIndex(index);
+  };
 
+  // Dummy placeholders for share and save route buttons
+  const saveRoute = () => {
+    toast.info('Save route functionality not implemented yet.');
+  };
+  const shareRoute = () => {
+    toast.info('Share route functionality not implemented yet.');
+  };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Loading overlay */}
-      {isLoading && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="text-white text-center font-semibold">
-          <h1 className="text-lg mb-2">Loading Data...</h1>
-          <p className="mb-4">Please wait while the data is loading.</p>
-          <img src="/newpreeload.gif" alt="Loading..." className="w-12 h-12 mx-auto" />
-        </div>
-      </div>
-    )}
-
-
-{showResults ? (
-  /* Results View */
-  <div className="max-w-7xl mx-auto py-2 px-4 sm:px-6 lg:px-8 mt-1">
-    <div className="mb-8 bg-white rounded-lg shadow-sm p-4">
-      <div className="flex items-center space-x-4 text-lg">
-        <div className="flex items-center space-x-3">
-          <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <span className="font-medium text-gray-900">{source}</span>
-        </div>
-        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-        </svg>
-        <div className="flex items-center space-x-3">
-          <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <span className="font-medium text-gray-900">{destination}</span>
-        </div>
-      </div>
-    </div>
-
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      {/* Left side - Route options */}
-      <div>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900">Route Options</h2>
-          <button
-            onClick={ handleEditJourney }
-            className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium flex items-center space-x-2"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-            <span>Edit Journey</span>
-          </button>
-        </div>
-        <RouteResults
-          source={source}
-          destination={destination}
-          vehicleType={vehicleType}
-        />
-      </div>
-
-      {/* Right side - Map */}
-      <div className="bg-white rounded-lg shadow-sm p-4 min-h-[600px]">
-        <MapContainer source={source} destination={destination} />
-      </div>
-    </div>
-
-    <div className="bg-white rounded-lg shadow-sm p-4 mt-6">
-  <h3 className="text-xl font-semibold mb-4">Toll Details for Selected Route</h3>
-  
-  {!tolls || tolls.length===0? (
-    <p>No tolls found on this route or the route is not selected.</p>
-  ) : (
-    <ul className="list-decimal list-inside space-y-2">
-      {tolls.map((toll, i) => (
-        <li key={i}>
-          <span className="font-medium"> 🛣️ {toll.name}</span> : <span className='text-green-700'> ₹{toll.rate}</span>
-        </li>
-      ))}
-    </ul>
-  )}
-</div>
-
-
-  </div>
-) : (
-  /* Input Form View */
-  <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-    <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
-      <h2 className="text-2xl font-semibold text-gray-900 mb-6">Calculate Toll</h2>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Route Information */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium text-gray-900">Route Information</h3>
+return (
+    <div className="min-h-screen p-4 lg:p-8 bg-gray-50 dark:bg-black">
+    <div className="max-w-7xl mx-auto">
+        {/* Form */}
+        <motion.form
+          onSubmit={handleSubmit}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+          className="bg-white dark:bg-black dark:border dark:border-red-900 rounded-2xl shadow-xl dark:shadow-red-900 p-6 mb-8"
+      >
+          <div className="flex flex-col lg:flex-row items-center gap-4 mb-4">
+            <div className="relative flex-1 min-w-0">
+              <Navigation className="absolute left-3 top-3 w-5 h-5 text-red-500 dark:text-red-400" />
+            <input
+                ref={sourceRef}
+              type="text"
+              placeholder="From (Origin)"
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-red-900 dark:bg-black dark:text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 dark:focus:border-red-400"
+                autoComplete="off"
+            />
           </div>
 
-
-          <div>
-  <label htmlFor="source" className="block text-sm font-medium text-gray-700">
-    Source
-  </label>
-  <input
-    ref={sourceRef}
-    type="text"
-    id="source"
-    value={source}
-    onChange={(e) => setSource(e.target.value)}
-    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2"
-    placeholder="Enter source location"
-    required
-  />
-</div>
-
-{/* Intermediate Stops */}
-{intermediateStops.map((stop, index) => (
-  <div key={index} className="relative">
-    <label htmlFor={`stop-${index}`} className="block text-sm font-medium text-gray-700">
-      Stop {index + 1}
-    </label>
-    <div className="mt-1 flex">
-      <input
-        type="text"
-        id={`stop-${index}`}
-        value={stop}
-        onChange={(e) => updateIntermediateStop(index, e.target.value)}
-        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2"
-        placeholder="Enter stop location"
-      />
-      <button
-        type="button"
-        onClick={() => removeIntermediateStop(index)}
-        className="ml-2 p-2 text-gray-400 hover:text-gray-600"
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-    </div>
-  </div>
-))}
-
-<div>
-  <label htmlFor="destination" className="block text-sm font-medium text-gray-700">
-    Destination
-  </label>
-  <input
-    ref={destinationRef}
-    type="text"
-    id="destination"
-    value={destination}
-    onChange={(e) => setDestination(e.target.value)}
-    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2"
-    placeholder="Enter destination location"
-    required
-  />
-</div>
-
-{/* Vehicle Details */}
-<div className="space-y-4">
-  <h3 className="text-lg font-medium text-gray-900">Vehicle Details</h3>
-
-  {/* Vehicle Input Toggle */}
-  <div className="bg-gray-50 rounded-lg p-4">
-    <div className="flex items-center space-x-6">
-      <div className="flex items-center">
-        <input
-          type="radio"
-          id="manualOption"
-          name="vehicleDetailType"
-          className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300"
-          checked={!showVehicleNumber}
-          onChange={() => setShowVehicleNumber(false)}
-        />
-        <label htmlFor="manualOption" className="ml-2 block text-sm font-medium text-gray-700">
-          Select Vehicle Details
-        </label>
-      </div>
-      <div className="flex items-center">
-        <input
-          type="radio"
-          id="vehicleNumberOption"
-          name="vehicleDetailType"
-          className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300"
-          checked={showVehicleNumber}
-          onChange={() => setShowVehicleNumber(true)}
-        />
-        <label htmlFor="vehicleNumberOption" className="ml-2 block text-sm font-medium text-gray-700">
-          Enter Vehicle Number
-        </label>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-{showVehicleNumber ? (
-  <div>
-    <label htmlFor="vehicleNumber" className="block text-sm font-medium text-gray-700">
-      Vehicle Registration Number
-    </label>
-    <input
-      type="text"
-      id="vehicleNumber"
-      value={vehicleNumber}
-      onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
-      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
-      placeholder="Enter vehicle registration number"
-    />
-  </div>
-) : (
-  <div className="space-y-4">
-    <div>
-      <label htmlFor="vehicleType" className="block text-sm font-medium text-gray-700">
-        Vehicle Type
-      </label>
-      <select
-        id="vehicleType"
-        value={vehicleType}
-        onChange={(e) => setVehicleType(e.target.value)}
-        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2"
-      >
-        <option value="Car">Car</option>
-        <option value="Light Commercial Vehicle">Light Commercial Vehicle</option>
-        <option value="Bus">Bus</option>
-        <option value="3 Axle Truck">3 Axle Truck</option>
-        <option value="Heavy Commercial Vehicle">Heavy Commercial Vehicle</option>
-        <option value="4 Axle Truck">4 Axle Truck</option>
-        <option value="5 or More Axle Truck">5 or More Axle Truck</option>
-      </select>
-    </div>
-
-                    
-
-                    
-                  </div>
-                )}
-              </div>
-
-              {/* Submit Button */}
-              <div>
+            {/* Interchange Button */}
+            <div className="flex items-center justify-center flex-none">
               <button
-    type="submit"
-    className="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-  >
-    Calculate Route
-  </button>
-              </div>
-            </form>
+                type="button"
+                aria-label="Swap source and destination"
+                className="p-2 rounded-full bg-gray-100 dark:bg-red-900 hover:bg-red-100 dark:hover:bg-red-800 border border-gray-200 dark:border-red-700 shadow-sm transition dark:text-white"
+                onClick={() => {
+                  const temp = source;
+                  setSource(destination);
+                  setDestination(temp);
+                  setTimeout(() => {
+                    if (destination && source) {
+                      const newSource = destination;
+                      const newDestination = source;
+                      if (newSource && newDestination) {
+                        document.getElementById('calculate-btn')?.click();
+                      }
+                    }
+                  }, 0);
+                }}
+              >
+                <ArrowUpDown className="w-5 h-5 text-red-500 dark:text-white" />
+              </button>
+            </div>
+
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-3 w-5 h-5 text-red-500 dark:text-white" />
+            <input
+                ref={destinationRef}
+              type="text"
+              placeholder="To (Destination)"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-red-900 dark:bg-black dark:text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 dark:focus:border-red-400"
+                autoComplete="off"
+            />
           </div>
+
+          <select
+            value={vehicleType}
+            onChange={(e) => setVehicleType(e.target.value)}
+              className="px-4 py-3 border border-gray-200 dark:border-red-900 dark:bg-black dark:text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 max-w-xs flex-1"
+          >
+              <option value="Car">Car</option>
+              <option value="Light Commercial Vehicle">Light Commercial Vehicle</option>
+              <option value="Bus">Bus</option>
+              <option value="3 Axle Truck">3 Axle Truck</option>
+              <option value="4 Axle Truck">4 Axle Truck</option>
+              <option value="Heavy Commercial Vehicle">Heavy Commercial Vehicle</option>
+              <option value="5 or More Axle Truck">5 or More Axle Truck</option>
+          </select>
+
+          <select
+            value={routePreference}
+            onChange={(e) => setRoutePreference(e.target.value)}
+              className="px-4 py-3 border border-gray-200 dark:border-red-900 dark:bg-black dark:text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 max-w-xs flex-1"
+          >
+              <option value="best">Best</option>
+            <option value="cheapest">Cheapest</option>
+            <option value="fastest">Fastest</option>
+          </select>
+
+          <motion.button
+              id="calculate-btn"
+              type="submit"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+              disabled={isCalculating || !source || !destination}
+              className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-all duration-200 ml-2 flex-none w-[170px] flex items-center justify-center dark:bg-gradient-to-r dark:from-black dark:to-red-900 dark:text-white"
+          >
+            {isCalculating ? (
+                <span className="flex items-center justify-center w-full">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2"></div>
+                Calculating...
+                </span>
+            ) : (
+                <span className="flex items-center justify-center w-full">
+                Calculate
+                </span>
+            )}
+          </motion.button>
+          </div>
+        </motion.form>
+
+      {/* Results Section */}
+        {showResults && routes.length > 0 && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          {/* Route Options */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+              className="xl:col-span-1 space-y-4 bg-white dark:bg-black dark:border dark:border-red-900 rounded-2xl shadow-xl dark:shadow-red-900 p-6 transition-colors duration-300"
+          >
+            <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Route Options</h2>
+                <div className="flex items-center space-x-2">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={saveRoute}
+                    className="p-2 text-gray-500 hover:text-red-600 dark:text-white dark:hover:text-red-400"
+                    title="Save route"
+                  >
+                    <Bookmark className="w-5 h-5" />
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={shareRoute}
+                    className="p-2 text-gray-500 hover:text-red-600 dark:text-white dark:hover:text-red-400"
+                    title="Share route"
+                  >
+                    <Share2 className="w-5 h-5" />
+                  </motion.button>
+                </div>
+            </div>
+
+              {/* List of route options */}
+              {routes && routes.length > 0 && (
+                <RouteResults
+                  source={source}
+                  destination={destination}
+                  vehicleType={vehicleType}
+                  routes={routes}
+                />
+            )}
+
+            {/* Report Issues Card */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+                className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-xl p-4 mt-6 dark:bg-gradient-to-r dark:from-black dark:to-red-900 dark:border-red-900 dark:text-red-100"
+            >
+              <div className="flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-orange-500 mt-0.5 dark:text-white" />
+                <div>
+                    <h3 className="font-semibold text-orange-800 dark:text-white">Found an Issue?</h3>
+                    <p className="text-sm text-orange-700 mb-2 dark:text-white">
+                    Report incorrect toll prices or missing toll booths
+                  </p>
+                    <button className="text-sm text-orange-600 hover:text-orange-800 font-medium underline dark:text-white dark:hover:text-red-400">
+                    Report Issue →
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+
+          {/* Map */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="xl:col-span-2 h-96 xl:h-[600px]"
+          >
+              <MapContainer
+              routes={routes}
+                selectedRouteIndex={selectedRouteIndex}
+                onSelectRoute={handleSelectRoute}
+            />
+          </motion.div>
         </div>
       )}
     </div>
-  );
+  </div>
+);
 };
 
 export default Calculator;

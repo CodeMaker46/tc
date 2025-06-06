@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import axios from 'axios';
+import { Trash2 } from 'lucide-react';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -252,141 +253,102 @@ export default function Profile() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Profile Section */}
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden mb-8">
-        <div className="bg-red-600 p-4">
-          <h1 className="text-2xl font-bold text-white">My Profile</h1>
+    <div className="min-h-screen p-4 lg:p-8 bg-gray-50 dark:bg-black text-gray-900 dark:text-red-100">
+      <div className="max-w-4xl mx-auto">
+        {/* Loading indicator */}
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <p className="text-xl dark:text-white">Loading profile...</p>
         </div>
-        
-        <div className="p-6">
-          <div className="flex flex-col md:flex-row items-center gap-8">
-            {/* Profile Image */}
+        ) : (
+          <div className="bg-white dark:bg-black dark:border dark:border-red-900 rounded-2xl shadow-xl dark:shadow-red-900 p-6 mb-8">
+            {/* Profile Header */}
+            <div className="flex items-center space-x-6 mb-8">
             <div className="relative">
-              <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-red-500">
-                {imageLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
-                  </div>
-                )}
                 <img
                   src={user.profileImage}
                   alt="Profile"
-                  className="w-full h-full object-cover"
+                  className="w-24 h-24 object-cover rounded-full border-4 border-red-500 shadow-lg dark:border-red-700"
                   onError={handleImageError}
-                  style={{ display: imageLoading ? 'none' : 'block' }}
-                  onLoad={() => setImageLoading(false)}
                 />
+                {imageLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-700"></div>
+                  </div>
+                )}
               </div>
-              <label className="absolute bottom-0 right-0 bg-red-500 p-2 rounded-full cursor-pointer hover:bg-red-600 transition-colors">
+              <div className="flex-1">
+                {!isEditing ? (
+                  <div className="flex items-center space-x-3">
+                    <h2 className="text-3xl font-bold dark:text-white">{user.name}</h2>
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-red-900 transition"
+                    >
+                      <svg className="w-5 h-5 text-gray-500 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={user.name}
+                    onChange={(e) => setUser({ ...user, name: e.target.value })}
+                    onBlur={handleNameUpdate}
+                    onKeyPress={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                    className="text-3xl font-bold bg-transparent border-b border-gray-300 dark:border-red-700 focus:outline-none focus:border-red-500 dark:focus:border-red-400 dark:text-white"
+                  />
+                )}
+                <p className="text-gray-600 dark:text-white">{user.email}</p>
+              </div>
+              {/* Profile image upload input */}
                 <input
                   type="file"
-                  className="hidden"
                   accept="image/*"
                   onChange={handleImageChange}
-                  disabled={imageLoading}
+                className="hidden"
+                id="profileImageInput"
                 />
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+              <label
+                htmlFor="profileImageInput"
+                className="cursor-pointer p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-red-900 dark:hover:bg-red-800 transition"
+              >
+                <svg className="w-6 h-6 text-gray-600 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.894-1.789A2 2 0 0113.71 3h1.58a2 2 0 011.664.89l.894 1.789A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </label>
             </div>
 
-            {/* Profile Info */}
-            <div className="flex-grow text-center md:text-left">
-              {!isEditing ? (
-                <>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">{user.name}</h2>
-                  <p className="text-gray-600 mb-4">{user.email}</p>
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors"
-                  >
-                    Edit Profile
-                  </button>
-                </>
-              ) : (
-                <form onSubmit={handleNameUpdate} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                    <input
-                      type="text"
-                      value={user.name}
-                      onChange={(e) => setUser({ ...user, name: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="flex gap-4">
-                    <button
-                      type="submit"
-                      className="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors"
-                    >
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditing(false)}
-                      className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Route History */}
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
-        <div className="bg-red-600 p-4">
-          <h2 className="text-xl font-bold text-white">Route History</h2>
-        </div>
-        
-        <div className="p-6">
-          {loading ? (
-            <div className="text-center py-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto"></div>
-            </div>
-          ) : routes.length === 0 ? (
-            <p className="text-gray-500 text-center">No routes found</p>
+            {/* Saved Routes Section */}
+            <div>
+              <h3 className="text-2xl font-bold mb-4 dark:text-white">Saved Routes</h3>
+              {routes.length === 0 ? (
+                <p className="text-gray-600 dark:text-white">No saved routes yet.</p>
           ) : (
-            <div className="space-y-4">
+                <ul className="space-y-4">
               {routes.map((route) => (
-                <div
-                  key={route._id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
-                >
-                  <div>
-                    <div className="flex items-center mb-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                      </svg>
+                    <li key={route._id} className="bg-gray-100 dark:bg-red-900 rounded-lg p-4 shadow flex justify-between items-center">
                       <div>
-                        <p className="font-medium">From: {route.source}</p>
-                        <p className="font-medium">To: {route.destination}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500">
-                      <span>{new Date(route.createdAt).toLocaleDateString()}</span>
-                      <span className="mx-2">•</span>
-                      <span>₹{route.price}</span>
-                    </div>
+                        <p className="font-semibold text-red-700 dark:text-white">{route.source} to {route.destination}</p>
+                        <p className="text-sm text-gray-600 dark:text-white">Vehicle: {route.vehicleType}</p>
+                        <p className="text-lg font-bold text-green-700 dark:text-white">₹{route.price?.toFixed(2) ?? 'N/A'}</p>
                   </div>
                   <button
                     onClick={() => handleDeleteRoute(route._id)}
-                    className="text-red-500 hover:text-red-700"
+                        className="p-2 rounded-full text-red-600 hover:bg-red-100 dark:text-white dark:hover:bg-red-800 transition"
+                        aria-label="Delete route"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                        <Trash2 className="w-5 h-5" />
                   </button>
-                </div>
+                    </li>
               ))}
+                </ul>
+              )}
+            </div>
             </div>
           )}
-        </div>
       </div>
     </div>
   );

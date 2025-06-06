@@ -50,7 +50,7 @@ const ForgetPassword = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors"
+            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
           >
             {loading ? 'Sending...' : 'Send Reset Link'}
           </button>

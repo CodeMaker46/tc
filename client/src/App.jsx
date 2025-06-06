@@ -11,54 +11,80 @@ import Profile from './pages/Profile';
 import PrivateRoute from './components/PrivateRoute';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { DarkModeProvider } from './context/DarkModeContext';
+import API from './pages/API';
 
 function App() {
   return (
     <Router>
       <ToastContainer />
-
-      <Routes>
-        {/* Public Route */}
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/admin" element={<AdminLogin />} />
-
-        {/* Layout Route */}
-        <Route
-          path="/*"
-          element={
-            <div className="min-h-screen bg-gray-50 flex flex-col">
-              <Header />
-              <div className="flex-grow">
-                <Routes>
-                  {/* Home is public */}
-                  <Route path="/" element={<Home />} />
-                  <Route path="/forget-password" element={<ForgetPassword />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  
-                  {/* Protected Routes */}
-                  <Route
-                    path="/calculator"
-                    element={
-                      <PrivateRoute>
-                        <Calculator />
-                      </PrivateRoute>
-                    }
-                  />
-                  <Route
-                    path="/profile"
-                    element={
-                      <PrivateRoute>
-                        <Profile />
-                      </PrivateRoute>
-                    }
-                  />
-                </Routes>
+      <DarkModeProvider>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/admin" element={<AdminLogin />} />
+          <Route path="/forget-password" element={<ForgetPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          
+          {/* API Route with Layout */}
+          <Route
+            path="/api"
+            element={
+              <div className="min-h-screen bg-gray-50 flex flex-col">
+                <Header />
+                <div className="flex-grow">
+                  <API />
+                </div>
+                <Footer />
               </div>
-              <Footer />
-            </div>
-          }
-        />
-      </Routes>
+            }
+          />
+
+          {/* Home Route - Separate for instant loading */}
+          <Route
+            path="/"
+            element={
+              <div className="min-h-screen bg-gray-50 flex flex-col">
+                <Header />
+                <div className="flex-grow">
+                  <Home />
+                </div>
+                <Footer />
+              </div>
+            }
+          />
+
+          {/* Protected Routes */}
+          <Route
+            path="/calculator"
+            element={
+              <div className="min-h-screen bg-gray-50 flex flex-col">
+                <Header />
+                <div className="flex-grow">
+                  <PrivateRoute>
+                    <Calculator />
+                  </PrivateRoute>
+                </div>
+                <Footer />
+              </div>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <div className="min-h-screen bg-gray-50 flex flex-col">
+                <Header />
+                <div className="flex-grow">
+                  <PrivateRoute>
+                    <Profile />
+                  </PrivateRoute>
+                </div>
+                <Footer />
+              </div>
+            }
+          />
+        </Routes>
+      </DarkModeProvider>
     </Router>
   );
 }
