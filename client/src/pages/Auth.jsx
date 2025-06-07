@@ -53,13 +53,14 @@ export default function Auth() {
 
       if (res.ok) {
         localStorage.setItem("token", data.token);
-        localStorage.setItem("name", result.user.displayName || "User");
+        localStorage.setItem("name", data.user.name || result.user.displayName || "User");
         localStorage.setItem("userId", data.user._id);
-        localStorage.setItem("email", result.user.email);
+        localStorage.setItem("email", data.user.email);
         localStorage.setItem(
           "profileImage",
           data.user.profileImage || result.user.photoURL
         );
+        localStorage.setItem("isAdmin", data.user.isAdmin ? "true" : "false");
         toast.success("Google login successful!");
         navigate("/");
       } else {
@@ -91,6 +92,7 @@ export default function Auth() {
         localStorage.setItem("userId", data.user._id);
         localStorage.setItem("email", data.user.email);
         localStorage.setItem("profileImage", data.user.profileImage || "");
+        localStorage.setItem("isAdmin", data.user.isAdmin ? "true" : "false");
 
         toast.success("Login successful!");
         navigate("/");
@@ -122,7 +124,6 @@ export default function Auth() {
     if (res.ok) {
       toast.success("OTP sent to admin email!");
       setOtpSent(true); // show the OTP input UI
-     // setOtpToken(data.otpToken); // store token to verify later
     } else {
       toast.error(data.message || "Admin login failed");
     }
@@ -152,8 +153,11 @@ const handleVerifyAdminOtp = async () => {
     const data = await res.json();
 
     if (res.ok) {
-      localStorage.setItem("adminToken", data.token);
-      localStorage.setItem("adminEmail", data.email);
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("userId", data.userId); // userId now holds the admin's user ID
+      localStorage.setItem("name", data.name); 
+      localStorage.setItem("email", data.email);
+      localStorage.setItem("isAdmin", data.isAdmin ? "true" : "false"); // Store isAdmin as a boolean string
       toast.success("Admin login successful!");
       navigate("/");
     } else {
@@ -321,9 +325,9 @@ const handleVerifyAdminOtp = async () => {
           </button>
         </div>
 
-        <div className="mx-auto w-full max-w-sm lg:w-96">
+        <div className="mx-auto w-full max-w-sm lg:w-96 bg-transparent">
           <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-3xl font-bold text-black dark:text-black">
               {isUser
                 ? isLogin
                   ? "Sign in to your account"
@@ -331,7 +335,7 @@ const handleVerifyAdminOtp = async () => {
                 : "Admin Login"}
             </h2>
             {isUser ? (
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              <p className="mt-2 text-sm text-black dark:text-black">
                 {isLogin
                   ? "Don't have an account? "
                   : "Already have an account? "}
@@ -376,7 +380,7 @@ const handleVerifyAdminOtp = async () => {
               isLogin ? (
                 <form onSubmit={handleUserLogin} className="space-y-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label className="block text-sm font-medium text-black dark:text-black">
                       Email Address
                     </label>
                     <input
@@ -392,7 +396,7 @@ const handleVerifyAdminOtp = async () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label className="block text-sm font-medium text-black dark:text-black">
                       Password
                     </label>
                     <input
@@ -413,7 +417,7 @@ const handleVerifyAdminOtp = async () => {
                         type="checkbox"
                         className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
                       />
-                      <label className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                      <label className="ml-2 block text-sm text-black dark:text-black">
                         Remember me
                       </label>
                     </div>
@@ -438,7 +442,7 @@ const handleVerifyAdminOtp = async () => {
                 <>
                   <form onSubmit={handleUserSignup} className="space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label className="block text-sm font-medium text-black dark:text-black">
                         Full Name
                       </label>
                       <input
@@ -454,7 +458,7 @@ const handleVerifyAdminOtp = async () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label className="block text-sm font-medium text-black dark:text-black">
                         Email Address
                       </label>
                       <input
@@ -470,7 +474,7 @@ const handleVerifyAdminOtp = async () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label className="block text-sm font-medium text-black dark:text-black">
                         Password
                       </label>
                       <input
@@ -486,7 +490,7 @@ const handleVerifyAdminOtp = async () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label className="block text-sm font-medium text-black dark:text-black">
                         Confirm Password
                       </label>
                       <input
@@ -511,7 +515,7 @@ const handleVerifyAdminOtp = async () => {
 
                   {/* OTP verification */}
                   <div className="mt-6">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label className="block text-sm font-medium text-black dark:text-black">
                       Enter OTP
                     </label>
                     <input
@@ -535,7 +539,7 @@ const handleVerifyAdminOtp = async () => {
               // Admin login form
               <form onSubmit={handleAdminLogin} className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="block text-sm font-medium text-black dark:text-black">
                     Admin Email
                   </label>
                   <input
@@ -551,7 +555,7 @@ const handleVerifyAdminOtp = async () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="block text-sm font-medium text-black dark:text-black">
                     Password
                   </label>
                   <input
@@ -575,7 +579,7 @@ const handleVerifyAdminOtp = async () => {
 
                 {otpSent && (
                   <div className="mt-6">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label className="block text-sm font-medium text-black dark:text-black">
                       Enter OTP
                     </label>
                     <input

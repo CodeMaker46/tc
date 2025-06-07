@@ -12,6 +12,9 @@ const RouteResults = ({ source, destination, vehicleType }) => {
     setSelectedRouteIndex,
   } = useRoute();
 
+  console.log('RouteResults: routeData from context (full):', routeData);
+  console.log('RouteResults: routeData.routes from context:', routeData?.routes);
+
   if (isLoading) {
     return (
       <div>
@@ -22,6 +25,10 @@ const RouteResults = ({ source, destination, vehicleType }) => {
   }
 
   if (!routeData || !routeData.routes || routeData.routes.length === 0) {
+    console.log('RouteResults: Displaying "No routes found" because:');
+    if (!routeData) console.log('  - routeData is null/undefined');
+    if (routeData && !routeData.routes) console.log('  - routeData.routes is null/undefined');
+    if (routeData && routeData.routes && routeData.routes.length === 0) console.log('  - routeData.routes is empty');
     return <p className="dark:text-white">No routes found from {source} to {destination} yet.</p>;
   }
 

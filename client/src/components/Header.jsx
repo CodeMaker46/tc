@@ -16,20 +16,11 @@ const Header = () => {
   }, []);
 
   const handleSignOut = () => {
- 
-    localStorage.removeItem('token');
-    localStorage.removeItem('name')
-    localStorage.removeItem('routeData')
-    localStorage.removeItem('selectedRouteIndex')
-    localStorage.removeItem('tolls')
-    localStorage.removeItem('polyline')
-    localStorage.removeItem('map')  
-    localStorage.removeItem('showResults');
+    localStorage.clear(); // Clears all items from localStorage
     
-   window.location.reload(); 
     setIsLoggedIn(false);
-    toast.success('Sign out successfull')
-    navigate('/'); // redirect to login/signup page
+    toast.success('Sign out successful');
+    navigate('/auth'); // redirect to login/signup page
   };
 
   return (

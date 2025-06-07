@@ -23,12 +23,10 @@ import {
 
 const Calculator = () => {
   // State variables
-  const [source, setSource] = useState(() => localStorage.getItem('source') || '');
-  const [destination, setDestination] = useState(() => localStorage.getItem('destination') || '');
-  const [showResults, setShowResults] = useState(() => localStorage.getItem('showResults') === 'true');
-  const [vehicleType, setVehicleType] = useState(() => 
-    localStorage.getItem('vehicleType') || 'Car'
-  );
+  const [source, setSource] = useState(''); // Initialize as empty
+  const [destination, setDestination] = useState(''); // Initialize as empty
+  const [showResults, setShowResults] = useState(false); // Initialize as false
+  const [vehicleType, setVehicleType] = useState('Car'); // Default to Car
   const [routePreference, setRoutePreference] = useState('best'); // example
   const [isCalculating, setIsCalculating] = useState(false);
   const [routes, setRoutes] = useState([]); // routes from API
@@ -44,37 +42,47 @@ const Calculator = () => {
   usePlacesAutocomplete(sourceRef, setSource);
   usePlacesAutocomplete(destinationRef, setDestination);
   
-  // Save form data to localStorage when changed (but don't save vehicle type if using a route)
+  // No longer saving source/destination persistently in this useEffect
+  // This useEffect will only be for saving `showResults` when it changes
   useEffect(() => {
-    localStorage.setItem('source', source);
-    localStorage.setItem('destination', destination);
-    // Only save vehicle type to localStorage if not using a route from history
-    if (!isUsingRoute) {
-      localStorage.setItem('vehicleType', vehicleType);
-    }
     localStorage.setItem('showResults', showResults.toString());
-  }, [source, destination, vehicleType, showResults, isUsingRoute]);
+  }, [showResults]);
 
   // Load saved route data and user preferences on mount
   useEffect(() => {
     // Check if coming from "Use Route" button
     const routeToUse = localStorage.getItem('routeToUse');
     if (routeToUse) {
+      console.log('Loading route from localStorage.routeToUse:', routeToUse);
       const { source: routeSource, destination: routeDestination, vehicleType: routeVehicleType } = JSON.parse(routeToUse);
       setIsUsingRoute(true); // Flag that we're using a route
       setSource(routeSource);
       setDestination(routeDestination);
       setVehicleType(routeVehicleType);
       
-      // Clear any existing results so user starts fresh
+      // Clear any existing results so user starts fresh, but prepare for new calculation
       setShowResults(false);
       setRoutes([]);
       setSelectedRouteIndex(-1);
       
-      localStorage.removeItem('routeToUse'); // Clean up
+      localStorage.removeItem('routeToUse'); // Clean up - important!
       toast.success('📍 Route loaded! Click Calculate to find toll details.');
     } else {
-      // Fetch user's default vehicle type if not using a route
+      // For a fresh load, clear previous search data from localStorage and state
+      console.log('No routeToUse found, clearing previous search data.');
+      localStorage.removeItem('source');
+      localStorage.removeItem('destination');
+      localStorage.removeItem('routeData');
+      localStorage.removeItem('showResults');
+
+      setSource('');
+      setDestination('');
+      setShowResults(false);
+      setRoutes([]);
+      setSelectedRouteIndex(-1);
+      setIsUsingRoute(false); // Ensure this is false for fresh loads
+
+      // Fetch user's default vehicle type
       const fetchDefaultVehicleType = async () => {
         const token = localStorage.getItem('token');
         const userId = localStorage.getItem('userId');
@@ -98,14 +106,15 @@ const Calculator = () => {
       fetchDefaultVehicleType();
     }
 
-    const savedRouteData = localStorage.getItem('routeData');
-    if (savedRouteData) {
-      const data = JSON.parse(savedRouteData);
-      setRoutes(data.routes || []);
-      setSelectedRouteIndex(data.selectedRouteIndex || -1);
-      setShowResults(true);
-      setRouteData(data);
-    }
+    // Remove this block as routeData is now cleared if not using routeToUse
+    // const savedRouteData = localStorage.getItem('routeData');
+    // if (savedRouteData) {
+    //   const data = JSON.parse(savedRouteData);
+    //   setRoutes(data.routes || []);
+    //   setSelectedRouteIndex(data.selectedRouteIndex || -1);
+    //   setShowResults(true);
+    //   setRouteData(data);
+    // }
   }, [setRouteData]);
 
   // Handle form submit to calculate toll/routes

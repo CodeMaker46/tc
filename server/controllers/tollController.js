@@ -651,38 +651,62 @@ const filterUniqueRouteTolls = (routeResults, config = {}) => {
 };
 
 const getTollData = async (req, res, nhaiData, tfw) => {
-  const { 
-    origin, 
-    destination, 
+  const {
+    origin,
+    destination,
     vehicleType = 'Car',
     strictMode = true,
     maxTollDistance = 0.5,
     enableCrossRouteFiltering = false
   } = req.body;
-  console.log("nhaisize",nhaiData.length)
-  console.log("tfwsize",tfw.length)
+  console.log(`=== getTollData called ===`);
+  console.log(`Origin: ${origin}, Destination: ${destination}, Vehicle: ${vehicleType}`);
+  console.log(`NHAI Data Loaded: ${nhaiData && nhaiData.length > 0 ? 'Yes' : 'No'} (${nhaiData ? nhaiData.length : 0} records)`);
+  console.log(`TFW Data Loaded: ${tfw && Object.keys(tfw).length > 0 ? 'Yes' : 'No'} (${tfw ? Object.keys(tfw).length : 0} records)`);
+
+  // Log user/admin identification
+  console.log('Request query:', req.query);
+  console.log('Request body:', req.body);
+  if (req.body.userId) {
+    console.log('Request made by userId:', req.body.userId);
+  }
+  if (req.body.adminId) {
+    console.log('Request made by adminId:', req.body.adminId);
+  }
+  if (req.body.isAdmin) {
+    console.log('Request isAdmin:', req.body.isAdmin);
+  }
+
   if (!origin || !destination) {
+    console.error('Error: Origin and destination are required');
     return res.status(400).json({ error: 'Origin and destination are required' });
   }
 
   if (!nhaiData || nhaiData.length === 0) {
+    console.error('Error: NHAI toll data not loaded or empty');
     return res.status(500).json({ error: 'NHAI toll data not loaded' });
   }
 
   try {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    console.log(`Google Maps API Key Status: ${apiKey ? 'Set' : 'Not Set'}`);
     if (apiKey === undefined) {
+      console.error('Error: Google Maps API key is not set');
       return res.status(500).json({ error: 'Google Maps API key is not set' });
     }
-    
-   // console.log(`Processing route from ${origin} to ${destination}`);
-    
+
+    // console.log(`Processing route from ${origin} to ${destination}`);
+
     // Get directions with maximum precision and detail
     const directionsURL = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&alternatives=true&mode=driving&key=${apiKey}&units=metric&avoid=ferries&traffic_model=best_guess&departure_time=now`;
+    console.log(`Fetching directions from Google Maps API...`);
     const googleRes = await axios.get(directionsURL);
     const routes = googleRes.data.routes;
+    console.log(`Google Maps API Response Status: ${googleRes.status}`);
+    console.log(`Found ${routes ? routes.length : 0} routes from Google Maps.`);
 
     if (!routes || routes.length === 0) {
+      console.error('Error: Route not found by Google Maps API');
       return res.status(404).json({ error: 'Route not found' });
     }
 

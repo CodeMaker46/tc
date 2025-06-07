@@ -61,8 +61,12 @@ export default function Profile() {
   const [user, setUser] = useState({
     name: localStorage.getItem('name') || 'User',
     email: localStorage.getItem('email') || 'user@example.com',
-    profileImage: localStorage.getItem('profileImage') || '/default-avatar.png'
+    profileImage: localStorage.getItem('profileImage') || '/default-avatar.png',
+    isAdmin: localStorage.getItem('isAdmin') === 'true'
   });
+
+  // Add state for admin requests
+  const [adminRequests, setAdminRequests] = useState([]);
 
   // Mock data for enhanced features (replace with real data later)
   const achievements = [
@@ -79,71 +83,71 @@ export default function Profile() {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
-  // Function to fetch user data and routes
+  // Fetch user data including admin status
   const fetchUserData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('userId');
+      
+      if (!token || !userId) {
+        toast.error('Please login to view profile');
+        navigate('/auth');
+        return;
+      }
+
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/api/users/profile`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.user) {
+        setUser(response.data.user);
+        console.log('Profile.jsx: fetchUserData - User state after update:', response.data.user);
+        console.log('Profile.jsx: fetchUserData - User isAdmin flag from API:', response.data.user.isAdmin);
+        // If user is admin, set adminRequestStatus to 'accepted'
+        if (response.data.user.isAdmin) {
+          setAdminRequestStatus('accepted');
+          console.log('Profile.jsx: fetchUserData - User is admin, setting adminRequestStatus to accepted.');
+        } else {
+          // If not admin, fetch their request status
+          fetchUserAdminRequest();
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      toast.error('Failed to load profile data');
+    } finally {
+      setLoading(false); // Ensure loading is set to false after attempt
+    }
+  };
+
+  // Function to fetch saved routes and trip history
+  const fetchRoutesAndHistory = async () => {
     const token = localStorage.getItem('token');
     const userId = localStorage.getItem('userId');
 
-    if (!token || !userId || userId === 'undefined') {
-      localStorage.clear();
-      toast.error('Please login to access your profile');
-      navigate('/auth');
+    if (!token || !userId) {
+      console.log('No token or userId for fetching routes, skipping.');
       return;
     }
 
-    setLoading(true);
     try {
-      // Fetch user profile
-      const profileResponse = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/api/users/profile?userId=${userId}`,
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/api/users/routes`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      if (profileResponse.data.user) {
-        const profileData = profileResponse.data.user;
-        setUser(prev => ({
-          ...prev,
-          name: profileData.name || prev.name,
-          email: profileData.email || prev.email,
-          profileImage: profileData.profileImage || prev.profileImage
-        }));
-
-        // Set default vehicle type from backend
-        setDefaultVehicleType(profileData.defaultVehicleType || 'Car');
-
-        // Update localStorage with latest data
-        localStorage.setItem('name', profileData.name);
-        if (profileData.profileImage) {
-          localStorage.setItem('profileImage', profileData.profileImage);
-        }
-      }
-
-      // Fetch all routes (for both saved routes and trip history)
-      const routesResponse = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/api/users/routes?userId=${userId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const allRoutes = routesResponse.data || [];
-      setRoutes(allRoutes);
-      setTripHistory(allRoutes);
-      setTotalTrips(allRoutes.length);
-      setSavedCount(allRoutes.filter(route => route.isSaved === true).length);
+      console.log('Routes API response:', response.data);
+      const fetchedRoutes = response.data.filter(route => route.isSaved);
+      const fetchedTripHistory = response.data.filter(route => !route.isSaved);
+      setRoutes(fetchedRoutes);
+      setTripHistory(fetchedTripHistory);
+      setTotalTrips(fetchedTripHistory.length);
+      setSavedCount(fetchedRoutes.length);
     } catch (error) {
-      console.error('Error fetching data:', error);
-      const errorMessage = error.response?.data?.message || error.message;
-      
-      if (error.response?.status === 401 || 
-          errorMessage.includes('Invalid User ID') || 
-          errorMessage.includes('User not found')) {
-        localStorage.clear();
-        toast.error('Session expired or invalid. Please login again');
-        navigate('/auth');
-      } else {
-        toast.error('Failed to load profile data. Please try again');
-      }
+      console.error('Error fetching routes and history:', error);
+      toast.error('Failed to load routes and trip history.');
     } finally {
-      setLoading(false);
+      setLoading(false); // Ensure loading is set to false after attempt
     }
   };
 
@@ -160,12 +164,12 @@ export default function Profile() {
       }
 
       await axios.delete(
-        `${import.meta.env.VITE_API_BASE_URL}/api/users/routes/${routeId}?userId=${userId}`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/users/routes/${routeId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       toast.success('Route deleted successfully!');
-      fetchUserData();
+      fetchRoutesAndHistory(); // Refresh routes after deletion
     } catch (error) {
       console.error('Error deleting route:', error);
       toast.error('Failed to delete route');
@@ -174,29 +178,47 @@ export default function Profile() {
 
   // Use effect to fetch data on component mount
   useEffect(() => {
+    setLoading(true); // Set loading to true when starting data fetch
     fetchUserData();
-  }, [navigate]);
+    fetchRoutesAndHistory(); // Call to fetch routes and history
+    if (!user.isAdmin) { // Only fetch user admin request if not an admin
+      fetchUserAdminRequest();
+    }
+    if (user.isAdmin) {
+      fetchAdminRequests();
+    }
+  }, [navigate, user.isAdmin]);
 
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
+  // Consolidated Profile Update Handler
+  const handleProfileUpdate = async (e) => {
+    e.preventDefault();
+    console.log('handleProfileUpdate function called');
+    const token = localStorage.getItem('token');
+    const userId = localStorage.getItem('userId'); // This will be adminId if isAdmin is true
+
+    const apiUrl = user.isAdmin 
+      ? `${import.meta.env.VITE_API_BASE_URL}/api/users/admin-profile` 
+      : `${import.meta.env.VITE_API_BASE_URL}/api/users/profile`;
+
+    if (!token || !userId) {
+      toast.error('Please login again');
+      navigate('/auth');
+      return;
+    }
+
+    let updatePayload = {};
+
+    if (e.target.files && e.target.files[0]) { // Check if it's a file input change
+      const file = e.target.files[0];
       if (!file.type.startsWith('image/')) {
         toast.error('Please upload an image file');
         return;
       }
 
+      const loadingToast = toast.loading('Processing image...');
+      setImageLoading(true);
+
       try {
-        const token = localStorage.getItem('token');
-        const userId = localStorage.getItem('userId');
-        if (!token || !userId) {
-          toast.error('Please login again');
-          navigate('/auth');
-          return;
-        }
-
-        const loadingToast = toast.loading('Processing image...');
-        setImageLoading(true);
-
         const img = new Image();
         const reader = new FileReader();
 
@@ -205,51 +227,56 @@ export default function Profile() {
         };
 
         img.onload = async () => {
-          try {
-            const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
 
-            const MAX_WIDTH = 800;
-            const MAX_HEIGHT = 800;
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
 
-            if (width > height) {
-              if (width > MAX_WIDTH) {
-                height *= MAX_WIDTH / width;
-                width = MAX_WIDTH;
-              }
-            } else {
-              if (height > MAX_HEIGHT) {
-                width *= MAX_HEIGHT / height;
-                height = MAX_HEIGHT;
-              }
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
             }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
 
-            canvas.width = width;
-            canvas.height = height;
+          canvas.width = width;
+          canvas.height = height;
 
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
 
-            const resizedImage = canvas.toDataURL('image/jpeg', 0.7);
+          const resizedImage = canvas.toDataURL('image/jpeg', 0.7);
+          
+          const formData = new FormData();
+          formData.append('image', resizedImage);
+          formData.append(user.isAdmin ? 'adminId' : 'userId', userId); // Use userId from localStorage
 
+          console.log('Frontend: FormData payload before sending:', formData);
+
+          // Send the API request after image processing
+          try {
             const response = await axios.put(
-              `${import.meta.env.VITE_API_BASE_URL}/api/users/profile?userId=${userId}`,
-              { image: resizedImage },
+              apiUrl,
+              formData,
               {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-                }
+                headers: { Authorization: `Bearer ${token}` }, // Axios automatically sets Content-Type for FormData
               }
             );
 
-            if (response.data.user) {
+            if (response.data) {
+              console.log('Image update response data:', response.data);
               setUser(prev => ({
                 ...prev,
-                profileImage: response.data.user.profileImage
+                profileImage: response.data[user.isAdmin ? 'admin' : 'user'].profileImage
               }));
-              localStorage.setItem('profileImage', response.data.user.profileImage);
+              localStorage.setItem('profileImage', response.data[user.isAdmin ? 'admin' : 'user'].profileImage);
               toast.dismiss(loadingToast);
               toast.success('Profile picture updated successfully!');
             }
@@ -269,38 +296,47 @@ export default function Profile() {
         };
 
         reader.readAsDataURL(file);
+
       } catch (error) {
         console.error('Error processing image:', error);
         toast.error('Failed to process image');
         setImageLoading(false);
       }
-    }
-  };
-
-  const handleNameUpdate = async (e) => {
-    e.preventDefault();
-    try {
-      const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('userId');
-      if (!token || !userId) {
-        toast.error('Please login again');
-        navigate('/auth');
-        return;
+    } else { // Assume it's a name update
+      updatePayload = { name: user.name };
+      if (user.isAdmin) {
+        updatePayload.adminId = userId; // Add adminId to payload for admin profile update
+      } else {
+        updatePayload.userId = userId; // Add userId to payload for user profile update
       }
 
-      const response = await axios.put(`${import.meta.env.VITE_API_BASE_URL}/api/users/profile?userId=${userId}`, 
-        { name: user.name },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      try {
+        const response = await axios.put(
+          apiUrl,
+          updatePayload,
+          {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          }
+        );
 
-      if (response.data) {
-        localStorage.setItem('name', user.name);
-        setIsEditing(false);
-        toast.success('Name updated successfully!');
+        if (response.data) {
+          setUser(prev => ({
+            ...prev,
+            name: response.data[user.isAdmin ? 'admin' : 'user'].name
+          }));
+          localStorage.setItem('name', response.data[user.isAdmin ? 'admin' : 'user'].name);
+          toast.success('Profile updated successfully!');
+          setIsEditing(false);
+        }
+      } catch (error) {
+        console.error('Error updating name:', error);
+        if (error.response?.status === 401) {
+          toast.error('Session expired. Please login again');
+          navigate('/auth');
+        } else {
+          toast.error('Failed to update profile');
+        }
       }
-    } catch (error) {
-      console.error('Error updating name:', error);
-      toast.error(error.response?.data?.message || 'Failed to update name');
     }
   };
 
@@ -350,7 +386,7 @@ export default function Profile() {
       // Delete all routes one by one
       const deletePromises = routes.map(route => 
         axios.delete(
-          `${import.meta.env.VITE_API_BASE_URL}/api/users/routes/${route._id}?userId=${userId}`,
+          `${import.meta.env.VITE_API_BASE_URL}/api/users/routes/${route._id}`,
           { headers: { Authorization: `Bearer ${token}` } }
         )
       );
@@ -359,7 +395,7 @@ export default function Profile() {
       
       setShowClearConfirm(false);
       toast.success('All routes cleared successfully!');
-      fetchUserData();
+      fetchRoutesAndHistory(); // Refresh routes after clearing
     } catch (error) {
       console.error('Error clearing routes:', error);
       toast.error('Failed to clear routes');
@@ -403,35 +439,98 @@ export default function Profile() {
   const totalSaved = savedRoutes.reduce((sum, route) => sum + (route.price || 0), 0);
   const totalSavedRoutes = savedRoutes.length;
 
-  // Handle admin request submission
+  // Fetch user's admin request status
+  const fetchUserAdminRequest = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/api/users/user-admin-request`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      if (response.data.status) {
+        setAdminRequestStatus(response.data.status);
+        console.log('Profile.jsx: fetchUserAdminRequest - Admin request status set to:', response.data.status);
+      }
+    } catch (error) {
+      console.error('Error fetching admin request status:', error);
+    }
+  };
+
+  // Submit admin request
   const handleAdminRequest = async () => {
     if (!adminRequestReason.trim()) {
       toast.error('Please provide a reason for admin request');
       return;
     }
-
     try {
-      // Simulate API call - replace with actual backend call
-      console.log('Admin request submitted:', {
-        userId: localStorage.getItem('userId'),
-        reason: adminRequestReason,
-        requestedAt: new Date()
-      });
-      
+      const userId = localStorage.getItem('userId');
+      const email = localStorage.getItem('email');
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        toast.error('You must be logged in to submit an admin request.');
+        return;
+      }
+
+      await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/api/users/admin-request`,
+        { userId, userEmail: email, reason: adminRequestReason },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setAdminRequestStatus('pending');
       setShowAdminRequest(false);
       setAdminRequestReason('');
-      toast.success('Admin request submitted successfully! We will review it soon.');
+      toast.success('Admin request submitted successfully!');
     } catch (error) {
       console.error('Error submitting admin request:', error);
-      toast.error('Failed to submit admin request. Please try again.');
+      toast.error(error.response?.data?.message || 'Failed to submit admin request');
     }
   };
 
-  // Handle admin request status update (for demo purposes)
-  const handleAdminStatusUpdate = (status) => {
-    setAdminRequestStatus(status);
-    toast.success(`Admin request ${status}!`);
+  // Fetch all admin requests (admin side)
+  const fetchAdminRequests = async () => {
+    if (!user.isAdmin) return;
+    try {
+      const token = localStorage.getItem('token'); // Simplified token retrieval
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/api/users/admin-requests`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setAdminRequests(response.data || []);
+    } catch (error) {
+      toast.error('Failed to fetch admin requests');
+    }
+  };
+
+  // Handle Logout
+  const handleLogout = () => {
+    localStorage.clear();
+    toast.success('Logged out successfully!');
+    navigate('/auth');
+  };
+
+  // Approve/reject admin request (admin side)
+  const handleAdminRequestAction = async (requestId, action) => {
+    try {
+      const token = localStorage.getItem('token'); // Simplified token retrieval
+
+      // Map the action string to the correct enum value for the backend
+      const backendAction = action === 'accept' ? 'accepted' : 'rejected';
+
+      await axios.patch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/users/admin-request/${requestId}`,
+        { action: backendAction }, // Send the corrected action string
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(`Request ${action}ed successfully`);
+      fetchAdminRequests();
+    } catch (error) {
+      console.error('Error updating admin request action:', error);
+      toast.error(error.response?.data?.message || `Failed to ${action} request`);
+    }
   };
 
   return (
@@ -462,7 +561,7 @@ export default function Profile() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={handleImageChange}
+                onChange={handleProfileUpdate}
                 className="hidden"
                 id="profileImageInput"
               />
@@ -494,7 +593,7 @@ export default function Profile() {
                     className="text-4xl font-bold bg-transparent border-b border-white/30 focus:outline-none focus:border-white text-white text-center"
                   />
                   <button
-                    onClick={handleNameUpdate}
+                    onClick={handleProfileUpdate}
                     className="p-2 rounded-full hover:bg-white/10 transition text-green-400"
                   >
                     <Check className="w-5 h-5" />
@@ -511,9 +610,9 @@ export default function Profile() {
             
                                      <p className="text-white/80 text-lg mb-4">{user.email}</p>
             
-            {/* Admin Request Section */}
+            {/* Admin Request Section - Only show if not admin */}
             <div className="mb-6">
-              {adminRequestStatus === 'none' && (
+              {!user.isAdmin && adminRequestStatus === 'none' && (
                 <motion.button
                   onClick={() => setShowAdminRequest(true)}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-6 py-3 rounded-lg transition-all backdrop-blur-sm border border-white/20"
@@ -524,35 +623,21 @@ export default function Profile() {
                 </motion.button>
               )}
               
-              {adminRequestStatus === 'pending' && (
+              {!user.isAdmin && adminRequestStatus === 'pending' && (
                 <div className="bg-yellow-500 bg-opacity-20 text-yellow-100 px-6 py-3 rounded-lg backdrop-blur-sm border border-yellow-300/20 flex items-center justify-center space-x-2">
                   <span>⏳</span>
                   <span>Admin Request Pending</span>
-                  <div className="flex space-x-2 ml-4">
-                    <button
-                      onClick={() => handleAdminStatusUpdate('accepted')}
-                      className="text-green-400 hover:text-green-300 underline text-sm"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      onClick={() => handleAdminStatusUpdate('rejected')}
-                      className="text-red-400 hover:text-red-300 underline text-sm"
-                    >
-                      Reject
-                    </button>
-                  </div>
                 </div>
               )}
               
-              {adminRequestStatus === 'accepted' && (
+              {user.isAdmin && (
                 <div className="bg-green-500 bg-opacity-20 text-green-100 px-6 py-3 rounded-lg backdrop-blur-sm border border-green-300/20 flex items-center justify-center space-x-2">
                   <span>✅</span>
                   <span>Admin Access Granted</span>
                 </div>
               )}
               
-              {adminRequestStatus === 'rejected' && (
+              {!user.isAdmin && adminRequestStatus === 'rejected' && (
                 <div className="bg-red-500 bg-opacity-20 text-red-100 px-6 py-3 rounded-lg backdrop-blur-sm border border-red-300/20 flex items-center justify-center space-x-2">
                   <span>❌</span>
                   <span>Admin Request Rejected</span>
@@ -888,7 +973,7 @@ export default function Profile() {
                    </motion.div>
                  )}
 
-                 {/* Requests Tab */}
+                 {/* Requests Tab - Add admin request management for admins */}
                  {activeTab === 'requests' && (
                    <motion.div
                      initial={{ opacity: 0, x: 20 }}
@@ -896,50 +981,31 @@ export default function Profile() {
                      className="space-y-6"
                    >
                      <div className="flex justify-between items-center">
-                       <h3 className="text-xl font-semibold text-gray-900 dark:text-white">My Requests</h3>
+                       <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                         {user.isAdmin ? 'Admin Requests' : 'My Requests'}
+                       </h3>
                      </div>
                      
-                     {requests.length === 0 ? (
-                       <div className="text-center py-12">
-                         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No requests yet</h3>
-                         <p className="text-gray-600 dark:text-gray-400 mb-4">Start by reporting a new issue</p>
-                         <motion.button 
-                           className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors"
-                           whileHover={{ scale: 1.05 }}
-                           whileTap={{ scale: 0.95 }}
-                           onClick={() => navigate('/report-issue')}
-                         >
-                           Report Issue
-                         </motion.button>
-                       </div>
-                     ) : (
+                     {user.isAdmin ? (
+                       // Admin view for managing requests
                        <div className="overflow-x-auto">
                          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                            <thead className="bg-gray-50 dark:bg-gray-800">
                              <tr>
                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                 Issue Type
+                                 User
                                </th>
                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                 Source
+                                 Email
                                </th>
                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                 Destination
-                               </th>
-                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                 Description
-                               </th>
-                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                 Expected Price
-                               </th>
-                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                 Calculated Price
+                                 Reason
                                </th>
                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                  Status
                                </th>
                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                 Date Reported
+                                 Requested At
                                </th>
                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                  Actions
@@ -947,75 +1013,184 @@ export default function Profile() {
                              </tr>
                            </thead>
                            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                             {requests.map((request, index) => (
+                             {adminRequests.map((request) => (
                                <motion.tr 
-                                 key={request._id} 
+                                 key={request._id}
                                  className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                                 initial={{ opacity: 0, y: 20 }}
-                                 animate={{ opacity: 1, y: 0 }}
-                                 transition={{ delay: index * 0.1 }}
                                >
                                  <td className="px-6 py-4 whitespace-nowrap">
                                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                     {request.issueType}
+                                     {request.userName}
                                    </div>
                                  </td>
                                  <td className="px-6 py-4 whitespace-nowrap">
-                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                     {request.source}
+                                   <div className="text-sm text-gray-500 dark:text-gray-400">
+                                     {request.userEmail}
+                                   </div>
+                                 </td>
+                                 <td className="px-6 py-4">
+                                   <div className="text-sm text-gray-900 dark:text-white">
+                                     {request.reason}
                                    </div>
                                  </td>
                                  <td className="px-6 py-4 whitespace-nowrap">
-                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                     {request.destination}
-                                   </div>
-                                 </td>
-                                 <td className="px-6 py-4 whitespace-nowrap">
-                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                     {request.description}
-                                   </div>
-                                 </td>
-                                 <td className="px-6 py-4 whitespace-nowrap">
-                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                     ₹{request.expectedPrice}
-                                   </div>
-                                 </td>
-                                 <td className="px-6 py-4 whitespace-nowrap">
-                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                     ₹{request.calculatedPrice}
-                                   </div>
-                                 </td>
-                                 <td className="px-6 py-4 whitespace-nowrap">
-                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                     ${request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                       request.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                                       'bg-red-100 text-red-800'}`}>
                                      {request.status}
-                                   </div>
+                                   </span>
                                  </td>
                                  <td className="px-6 py-4 whitespace-nowrap">
-                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                     {new Date(request.createdAt).toLocaleDateString('en-IN')}
+                                   <div className="text-sm text-gray-500 dark:text-gray-400">
+                                     {new Date(request.createdAt).toLocaleDateString()}
                                    </div>
                                  </td>
-                                 <td className="px-6 py-4 whitespace-nowrap">
-                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                     <button
-                                       onClick={() => navigate('/view-issue', { state: request })}
-                                       className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 mr-3"
-                                     >
-                                       View
-                                     </button>
-                                     <button
-                                       onClick={() => handleDeleteRoute(request._id)}
-                                       className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
-                                     >
-                                       Delete
-                                     </button>
-                                   </div>
+                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                   {request.status === 'pending' && (
+                                     <div className="flex space-x-2">
+                                       <button
+                                         onClick={() => handleAdminRequestAction(request._id, 'accept')}
+                                         className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                                       >
+                                         Accept
+                                       </button>
+                                       <button
+                                         onClick={() => handleAdminRequestAction(request._id, 'reject')}
+                                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                       >
+                                         Reject
+                                       </button>
+                                     </div>
+                                   )}
                                  </td>
                                </motion.tr>
                              ))}
                            </tbody>
                          </table>
                        </div>
+                     ) : (
+                       // Regular user view for their requests
+                       <>
+                         {requests.length === 0 ? (
+                           <div className="text-center py-12">
+                             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No requests yet</h3>
+                             <p className="text-gray-600 dark:text-gray-400 mb-4">Start by reporting a new issue</p>
+                             <motion.button 
+                               className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors"
+                               whileHover={{ scale: 1.05 }}
+                               whileTap={{ scale: 0.95 }}
+                               onClick={() => navigate('/report-issue')}
+                             >
+                               Report Issue
+                             </motion.button>
+                           </div>
+                         ) : (
+                           <div className="overflow-x-auto">
+                             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                               <thead className="bg-gray-50 dark:bg-gray-800">
+                                 <tr>
+                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                     Issue Type
+                                   </th>
+                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                     Source
+                                   </th>
+                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                     Destination
+                                   </th>
+                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                     Description
+                                   </th>
+                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                     Expected Price
+                                   </th>
+                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                     Calculated Price
+                                   </th>
+                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                     Status
+                                   </th>
+                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                     Date Reported
+                                   </th>
+                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                     Actions
+                                   </th>
+                                 </tr>
+                               </thead>
+                               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                 {requests.map((request, index) => (
+                                   <motion.tr 
+                                     key={request._id} 
+                                     className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                     initial={{ opacity: 0, y: 20 }}
+                                     animate={{ opacity: 1, y: 0 }}
+                                     transition={{ delay: index * 0.1 }}
+                                   >
+                                     <td className="px-6 py-4 whitespace-nowrap">
+                                       <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                         {request.issueType}
+                                       </div>
+                                     </td>
+                                     <td className="px-6 py-4 whitespace-nowrap">
+                                       <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                         {request.source}
+                                       </div>
+                                     </td>
+                                     <td className="px-6 py-4 whitespace-nowrap">
+                                       <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                         {request.destination}
+                                       </div>
+                                     </td>
+                                     <td className="px-6 py-4 whitespace-nowrap">
+                                       <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                         {request.description}
+                                       </div>
+                                     </td>
+                                     <td className="px-6 py-4 whitespace-nowrap">
+                                       <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                         ₹{request.expectedPrice}
+                                       </div>
+                                     </td>
+                                     <td className="px-6 py-4 whitespace-nowrap">
+                                       <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                         ₹{request.calculatedPrice}
+                                       </div>
+                                     </td>
+                                     <td className="px-6 py-4 whitespace-nowrap">
+                                       <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                         {request.status}
+                                       </div>
+                                     </td>
+                                     <td className="px-6 py-4 whitespace-nowrap">
+                                       <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                         {new Date(request.createdAt).toLocaleDateString('en-IN')}
+                                       </div>
+                                     </td>
+                                     <td className="px-6 py-4 whitespace-nowrap">
+                                       <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                         <button
+                                           onClick={() => navigate('/view-issue', { state: request })}
+                                           className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 mr-3"
+                                         >
+                                           View
+                                         </button>
+                                         <button
+                                           onClick={() => handleDeleteRoute(request._id)}
+                                           className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                                         >
+                                           Delete
+                                         </button>
+                                       </div>
+                                     </td>
+                                   </motion.tr>
+                                 ))}
+                               </tbody>
+                             </table>
+                           </div>
+                         )}
+                       </>
                      )}
                    </motion.div>
                  )}
@@ -1028,54 +1203,104 @@ export default function Profile() {
                      className="space-y-6"
                    >
                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Settings</h3>
-                     
                      <div className="space-y-6">
                        {/* Profile Settings */}
                        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6">
                          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Profile Settings</h4>
                          <div className="space-y-4">
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div>
-                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                 Display Name
-                               </label>
-                               <input
-                                 type="text"
-                                 value={user.name}
-                                 onChange={(e) => setUser({ ...user, name: e.target.value })}
-                                 className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                               />
-                             </div>
-                             <div>
-                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                 Email Address
-                               </label>
-                               <input
-                                 type="email"
-                                 value={user.email}
-                                 disabled
-                                 className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400"
-                               />
-                             </div>
-                           </div>
-                           <div className="flex space-x-4">
-                             <motion.button
-                               whileHover={{ scale: 1.02 }}
-                               whileTap={{ scale: 0.98 }}
-                               onClick={handleNameUpdate}
-                               className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-                             >
-                               Update Profile
-                             </motion.button>
-                             <motion.button
-                               whileHover={{ scale: 1.02 }}
-                               whileTap={{ scale: 0.98 }}
-                               onClick={() => navigate('/forget-password')}
-                               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                             >
-                               Reset Password
-                             </motion.button>
-                           </div>
+                           {user.isAdmin ? (
+                             <form onSubmit={handleProfileUpdate} className="space-y-4">
+                               <div>
+                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                   Name
+                                 </label>
+                                 <input
+                                   type="text"
+                                   value={user.name}
+                                   onChange={(e) => setUser({ ...user, name: e.target.value })}
+                                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                                 />
+                               </div>
+                               <div>
+                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                   Email Address
+                                 </label>
+                                 <input
+                                   type="email"
+                                   value={user.email}
+                                   onChange={(e) => setUser({ ...user, email: e.target.value })}
+                                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                                 />
+                               </div>
+                               <div>
+                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                   New Password
+                                 </label>
+                                 <input
+                                   type="password"
+                                   value={user.password || ''}
+                                   onChange={(e) => setUser({ ...user, password: e.target.value })}
+                                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                                   placeholder="Enter new password"
+                                 />
+                               </div>
+                               <motion.button
+                                 whileHover={{ scale: 1.02 }}
+                                 whileTap={{ scale: 0.98 }}
+                                 type="submit"
+                                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                               >
+                                 Update Admin Profile
+                               </motion.button>
+                             </form>
+                           ) : (
+                             <>
+                               <div className="space-y-4">
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                   <div>
+                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                       Display Name
+                                     </label>
+                                     <input
+                                       type="text"
+                                       value={user.name}
+                                       onChange={(e) => setUser({ ...user, name: e.target.value })}
+                                       className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                                     />
+                                   </div>
+                                   <div>
+                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                       Email Address
+                                     </label>
+                                     <input
+                                       type="email"
+                                       value={user.email}
+                                       disabled
+                                       className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400"
+                                     />
+                                   </div>
+                                 </div>
+                                 <div className="flex space-x-4">
+                                   <motion.button
+                                     whileHover={{ scale: 1.02 }}
+                                     whileTap={{ scale: 0.98 }}
+                                     onClick={handleProfileUpdate}
+                                     className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                                   >
+                                     Update Profile
+                                   </motion.button>
+                                   <motion.button
+                                     whileHover={{ scale: 1.02 }}
+                                     whileTap={{ scale: 0.98 }}
+                                     onClick={() => navigate('/forget-password')}
+                                     className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                   >
+                                     Reset Password
+                                   </motion.button>
+                                 </div>
+                               </div>
+                             </>
+                           )}
                          </div>
                        </div>
 
@@ -1139,7 +1364,7 @@ export default function Profile() {
                              whileHover={{ scale: 1.02 }}
                              whileTap={{ scale: 0.98 }}
                              onClick={() => setShowDeleteConfirm(true)}
-                             className="bg-red-700 text-white px-4 py-2 rounded-lg hover:bg-red-800 transition-colors"
+                             className="bg-red-700 text-white px-4 py-2 rounded-lg hover:bg-red-800 transition-colors mr-2"
                            >
                              Delete Account
                            </motion.button>

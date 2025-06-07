@@ -4,7 +4,12 @@ const routeSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false
+  },
+  admin: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    required: false
   },
   source: {
     type: String,
@@ -20,6 +25,7 @@ const routeSchema = new mongoose.Schema({
   },
   vehicleType: {
     type: String,
+    enum: ['Car', 'Motorcycle', 'Truck', 'Bus'],
     default: 'Car'
   },
   isSaved: {

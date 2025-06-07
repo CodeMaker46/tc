@@ -2,7 +2,6 @@ const User=require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const Admin = require('../models/Admin');
 const otpStore = new Map();
 const nodemailer=require("nodemailer");
 const PendingUser=require('../models/pendingUser');
@@ -112,7 +111,7 @@ exports.login = async (req, res) => {
       expiresIn: '1d',
     });
 
-    // Send response with user data
+    // Send response with user data, including isAdmin flag
     return res.status(200).json({
       message: 'Login successful',
       token,
@@ -120,7 +119,8 @@ exports.login = async (req, res) => {
         _id: user._id.toString(), // Convert ObjectId to string
         name: user.name,
         email: user.email,
-        profileImage: user.profileImage || ''
+        profileImage: user.profileImage || '',
+        isAdmin: user.isAdmin || false // Include isAdmin flag, default to false
       }
     });
   } catch (error) {
@@ -137,14 +137,24 @@ exports.adminlogin = async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required' });
   }
    try {
-    const admin = await Admin.findOne({ email });
+    // Find the user by email, ensure they are an admin
+    const user = await User.findOne({ email });
 
-    if (!admin)
+    if (!user) {
+      console.log(`Admin login failed: User with email ${email} not found.`);
       return res.status(401).json({ message: 'Invalid credentials.' });
+    }
 
-    const validPassword = await bcrypt.compare(password, admin.password);
-    if (!validPassword)
+    if (!user.isAdmin) {
+      console.log(`Admin login failed: User ${email} is not an admin.`);
+      return res.status(403).json({ message: 'Access denied: Not an administrator.' });
+    }
+
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      console.log(`Admin login failed: Invalid password for ${email}.`);
       return res.status(401).json({ message: 'Invalid credentials.' });
+    }
 
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -152,6 +162,7 @@ exports.adminlogin = async (req, res) => {
 
     // Store OTP
     otpStore.set(email, { otp, expiresAt });
+    console.log(`OTP ${otp} generated and stored for ${email}.`);
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
@@ -159,6 +170,7 @@ exports.adminlogin = async (req, res) => {
       subject: 'Admin Login OTP Verification',
       text: `Your OTP for login is: ${otp}`,
     });
+    console.log(`OTP email sent to ${email}.`);
 
     return res.status(200).json({
       message: 'OTP sent to your email. Please verify.',
@@ -168,8 +180,6 @@ exports.adminlogin = async (req, res) => {
     console.error('Admin login error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
-
-
 }
 
 
@@ -195,8 +205,17 @@ exports.verifyAdminOtp = async (req, res) => {
     return res.status(400).json({ error: 'OTP has expired' });
   }
 
-  
-  const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
+  // Find the user who is an admin
+  const user = await User.findOne({ email});
+  if (!user) {
+    // This case should ideally not happen if adminlogin already checked isAdmin
+    // but as a safety measure
+    return res.status(403).json({ error: 'User not found' });
+  }
+  if( !user.isAdmin) {
+    return res.status(403).json({ error: 'Access denied: Not an admin' });
+  }
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
   // Clear OTP after successful verification
   otpStore.delete(email);
@@ -204,7 +223,10 @@ exports.verifyAdminOtp = async (req, res) => {
   return res.status(200).json({
     message: 'OTP verified successfully',
     token,
-    email,
+    userId: user._id, // Renamed from adminId to userId for consistency
+    name: user.name, // Include the admin's name
+    email: user.email,
+   // isAdmin: true // Explicitly indicate this is an admin login
   });
 }
 
@@ -243,84 +265,48 @@ exports.resetPassword = async (req, res) => {
   user.resetTokenExpiry = undefined;
   await user.save();
 
-  res.status(200).json({ message: 'Password reset successful' });
+  res.status(200).json({ message: 'Password reset successfully' });
 };
 
 exports.googleLogin = async (req, res) => {
+  const { email, name, googleId, profileImage } = req.body;
+
   try {
-    const { email, name, googleId, profileImage } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
-
-    // Find user by email or create new user
     let user = await User.findOne({ email });
-    let cloudinaryUrl = '';
-
-    // If profile image URL is provided and we need to update it
-    if (profileImage && (!user || !user.profileImage)) {
-      try {
-        // Download image from Google
-        const imageResponse = await axios.get(profileImage, {
-          responseType: 'arraybuffer'
-        });
-        const base64Image = Buffer.from(imageResponse.data).toString('base64');
-
-        // Upload to Cloudinary
-        const uploadResponse = await cloudinary.uploader.upload(
-          `data:image/jpeg;base64,${base64Image}`,
-          {
-            folder: 'profile_pictures',
-            use_filename: true,
-            unique_filename: true,
-          }
-        );
-        cloudinaryUrl = uploadResponse.secure_url;
-      } catch (error) {
-        console.error('Error uploading Google profile image to Cloudinary:', error);
-        // Continue with login even if image upload fails
-      }
-    }
 
     if (!user) {
-      // Create new user in your DB with Google info
       user = await User.create({
-        name: name || 'User',
+        name,
         email,
         googleId,
-        profileImage: cloudinaryUrl || '', // Use Cloudinary URL instead of Google URL
-        password: null // no password for Google users
+        profileImage: profileImage || '',
+        isAdmin: false // Default to false for new Google users
       });
     } else {
-      // Update existing user's Google ID and profile image if not set
-      if (!user.googleId || !user.profileImage) {
+      // Update googleId if not already set (e.g., existing user logs in with Google for the first time)
+      if (!user.googleId) {
         user.googleId = googleId;
-        if (!user.profileImage && cloudinaryUrl) {
-          user.profileImage = cloudinaryUrl;
-        }
+        user.profileImage = user.profileImage || profileImage || '';
         await user.save();
       }
     }
 
-    // Create JWT token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: '1d'
-    });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
-    return res.status(200).json({
-      message: 'Login successful',
+    res.status(200).json({
+      message: 'Google login successful',
       token,
       user: {
-        _id: user._id,
+        _id: user._id.toString(),
         name: user.name,
         email: user.email,
-        profileImage: user.profileImage
+        profileImage: user.profileImage || '',
+        isAdmin: user.isAdmin || false // Include isAdmin flag
       }
     });
   } catch (error) {
     console.error('Google login error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 

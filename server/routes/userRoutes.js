@@ -1,20 +1,38 @@
 const express = require('express');
 const router = express.Router();
+const { protect } = require('../middleware/authMiddleware');
 const {
   saveRoute,
   getUserRoutes,
   deleteRoute,
   updateProfile,
-  getProfile
+  getProfile,
+  createAdminRequest,
+  getAllAdminRequests,
+  updateAdminRequestStatus,
+  getUserAdminRequest,
+  getAdminProfile,
+  updateAdminProfile
 } = require('../controllers/userController');
 
+module.exports = (upload) => {
 
-router.post('/routes', saveRoute);
-router.get('/routes', getUserRoutes);
-router.delete('/routes/:id', deleteRoute);
+  router.post('/routes', protect, saveRoute);
+  router.get('/routes', protect, getUserRoutes);
+  router.delete('/routes/:id', protect, deleteRoute);
 
 
-router.get('/profile', getProfile);
-router.put('/profile', updateProfile);
+  router.get('/profile', protect, getProfile);
+  router.put('/profile', protect, upload.single('image'), updateProfile);
 
-module.exports = router; 
+  // Admin Profile Routes
+  router.get('/admin-profile', protect, getAdminProfile);
+  router.put('/admin-profile', protect, upload.single('image'), updateAdminProfile);
+
+  router.post('/admin-request', protect, createAdminRequest);
+  router.get('/admin-requests', protect, getAllAdminRequests);
+  router.patch('/admin-request/:requestId', protect, updateAdminRequestStatus);
+  router.get('/user-admin-request', protect, getUserAdminRequest);
+
+  return router;
+}; 
