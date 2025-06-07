@@ -95,18 +95,13 @@ const RouteCard = ({ route, isSelected, onSelect }) => {
             >
               Duration
             </p>
-            <p className="font-semibold">
-              {Math.round(route.duration)} min
+            <p className="text-lg font-bold">
+              {route.duration}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <DollarSign
-            className={`w-4 h-4 ${
-              isSelected ? 'text-red-200' : 'text-red-500'
-            }`}
-          />
+        <div className="flex items-center space-x-2 justify-end text-right">
           <div>
             <p
               className={`text-sm ${
@@ -115,7 +110,7 @@ const RouteCard = ({ route, isSelected, onSelect }) => {
             >
               Total Cost
             </p>
-            <p className="font-semibold">
+            <p className="text-lg font-bold">
               ₹{route.cost.toFixed(2)}
             </p>
           </div>
@@ -142,13 +137,6 @@ const RouteCard = ({ route, isSelected, onSelect }) => {
           )}
         </div>
       </div>
-
-      {route.totalToll > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-red-800 text-lg font-bold text-green-700 dark:text-red-400 flex items-center">
-          <IndianRupee className="w-5 h-5 mr-1 text-green-600 dark:text-white" />
-          <span className="dark:text-white">₹{route.totalToll.toFixed(2)}</span>
-        </div>
-      )}
     </motion.div>
   );
 };

@@ -487,7 +487,7 @@ return (
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
-            className="xl:col-span-2 h-96 xl:h-[600px]"
+            className="xl:col-span-2 h-96 xl:h-[600px] sticky top-20"
           >
               <MapContainer
               routes={routes}
