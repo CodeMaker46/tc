@@ -119,11 +119,13 @@ export default function Auth() {
     });
 
     const data = await res.json();
-    console.log('data:', data);
+    console.log('Admin login response:', data); // Debug log
 
     if (res.ok) {
+      // Set admin status immediately on successful login
+      localStorage.setItem("isAdmin", "true");
       toast.success("OTP sent to admin email!");
-      setOtpSent(true); // show the OTP input UI
+      setOtpSent(true);
     } else {
       toast.error(data.message || "Admin login failed");
     }
@@ -151,13 +153,16 @@ const handleVerifyAdminOtp = async () => {
     });
 
     const data = await res.json();
+    console.log('Admin verify response:', data); // Debug log
 
     if (res.ok) {
+      // Ensure admin status is set to true
       localStorage.setItem("token", data.token);
-      localStorage.setItem("userId", data.userId); // userId now holds the admin's user ID
+      localStorage.setItem("userId", data.userId);
       localStorage.setItem("name", data.name); 
       localStorage.setItem("email", data.email);
-      localStorage.setItem("isAdmin", data.isAdmin ? "true" : "false"); // Store isAdmin as a boolean string
+      localStorage.setItem("isAdmin", "true"); // Always set to true for admin
+      console.log('Admin status set:', localStorage.getItem('isAdmin')); // Debug log
       toast.success("Admin login successful!");
       navigate("/");
     } else {

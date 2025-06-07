@@ -8,7 +8,9 @@ import AdminLogin from './components/Admin';
 import ResetPassword from './components/ResetPassword';
 import Auth from './pages/Auth';
 import Profile from './pages/Profile';
+import TollData from './pages/TollData';
 import PrivateRoute from './components/PrivateRoute';
+import AdminRoute from './components/AdminRoute';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { DarkModeProvider } from './context/DarkModeContext';
@@ -30,7 +32,7 @@ function App() {
           <Route
             path="/api"
             element={
-              <div className="min-h-screen bg-gray-50 flex flex-col">
+              <div className="min-h-screen bg-gray-50 flex flex-col dark:bg-gray-900">
                 <Header />
                 <div className="flex-grow">
                   <API />
@@ -44,7 +46,7 @@ function App() {
           <Route
             path="/"
             element={
-              <div className="min-h-screen bg-gray-50 flex flex-col">
+              <div className="min-h-screen bg-gray-50 flex flex-col dark:bg-gray-900">
                 <Header />
                 <div className="flex-grow">
                   <Home />
@@ -58,7 +60,7 @@ function App() {
           <Route
             path="/calculator"
             element={
-              <div className="min-h-screen bg-gray-50 flex flex-col">
+              <div className="min-h-screen bg-gray-50 flex flex-col dark:bg-gray-900">
                 <Header />
                 <div className="flex-grow">
                   <PrivateRoute>
@@ -72,12 +74,28 @@ function App() {
           <Route
             path="/profile"
             element={
-              <div className="min-h-screen bg-gray-50 flex flex-col">
+              <div className="min-h-screen bg-gray-50 flex flex-col dark:bg-gray-900">
                 <Header />
                 <div className="flex-grow">
                   <PrivateRoute>
                     <Profile />
                   </PrivateRoute>
+                </div>
+                <Footer />
+              </div>
+            }
+          />
+
+          {/* Admin Routes */}
+          <Route
+            path="/toll-data"
+            element={
+              <div className="min-h-screen bg-gray-50 flex flex-col dark:bg-gray-900">
+                <Header />
+                <div className="flex-grow">
+                  <AdminRoute>
+                    <TollData />
+                  </AdminRoute>
                 </div>
                 <Footer />
               </div>

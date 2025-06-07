@@ -5,7 +5,7 @@ const connectDB = require('./config/database');
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const multer = require('multer');
-const { router: tollRoutes } = require('./routes/tollRoutes');
+const tollRoutes = require('./routes/tollRoutes');
 
 const app = express();
 dotenv.config();
@@ -26,7 +26,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 app.use('/api/users', userRoutes(upload));
 app.use('/api/auth', authRoutes);
-app.use('/api/toll', tollRoutes);
+app.use('/api/tolls', tollRoutes);
 
 app.get('/', (req,res)=>{
     res.send('Server is running...');
