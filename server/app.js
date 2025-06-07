@@ -9,7 +9,6 @@ const tollRoutes = require('./routes/tollRoutes');
 
 const app = express();
 dotenv.config();
-connectDB();
 
 app.use(cors({
     origin: '*',
@@ -26,7 +25,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 app.use('/api/users', userRoutes(upload));
 app.use('/api/auth', authRoutes);
-app.use('/api/tolls', tollRoutes);
+app.use('/api/toll', tollRoutes);
 
 app.get('/', (req,res)=>{
     res.send('Server is running...');

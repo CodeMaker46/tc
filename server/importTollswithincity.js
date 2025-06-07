@@ -7,7 +7,7 @@ const Tollswithincity = require('./models/Tollswithincity');
 
 const connectDB = async () => {
   await mongoose.connect(process.env.MONGO_URI);
-  console.log('Connected to MongoDB');
+  // console.log('Connected to MongoDB');
 };
 
 const importTolls = () => {
