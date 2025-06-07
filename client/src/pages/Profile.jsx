@@ -2,19 +2,82 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import axios from 'axios';
-import { Trash2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { 
+  User, MapPin, Clock, DollarSign, Settings, History, Star, Plus, Award, Target, 
+  Calendar, TrendingUp, Trash2, Camera, Edit3, Check, X, AlertCircle, Save, Filter, Search, MoreVertical, Edit2, ExternalLink
+} from 'lucide-react';
 
 export default function Profile() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('routes');
   const [isEditing, setIsEditing] = useState(false);
   const [routes, setRoutes] = useState([]);
+  const [tripHistory, setTripHistory] = useState([]);
+  const [totalTrips, setTotalTrips] = useState(0);
+  const [savedCount, setSavedCount] = useState(0);
+  const [vehicleFilter, setVehicleFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [imageLoading, setImageLoading] = useState(false);
+  const [filterVehicleType, setFilterVehicleType] = useState('all');
+  const [defaultVehicleType, setDefaultVehicleType] = useState('Car');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [adminRequestStatus, setAdminRequestStatus] = useState('none'); // none, pending, accepted, rejected
+  const [showAdminRequest, setShowAdminRequest] = useState(false);
+  const [adminRequestReason, setAdminRequestReason] = useState('');
+  const [requests, setRequests] = useState([
+    {
+      _id: '1',
+      issueType: 'Incorrect Toll Price',
+      source: 'Mumbai',
+      destination: 'Pune',
+      description: 'The calculated toll price seems higher than the actual toll price charged at the booth.',
+      expectedPrice: 150,
+      calculatedPrice: 200,
+      status: 'pending',
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+    },
+    {
+      _id: '2',
+      issueType: 'Missing Toll Booth',
+      source: 'Delhi',
+      destination: 'Jaipur',
+      description: 'There is a toll booth on NH-8 that is not included in the route calculation.',
+      status: 'under_review',
+      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+    },
+    {
+      _id: '3',
+      issueType: 'Route Error',
+      source: 'Bangalore',
+      destination: 'Chennai',
+      description: 'The suggested route takes a longer path. There is a shorter route available.',
+      status: 'resolved',
+      createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
+    }
+  ]);
   const [user, setUser] = useState({
     name: localStorage.getItem('name') || 'User',
     email: localStorage.getItem('email') || 'user@example.com',
     profileImage: localStorage.getItem('profileImage') || '/default-avatar.png'
   });
+
+  // Mock data for enhanced features (replace with real data later)
+  const achievements = [
+    { id: 1, title: 'Money Saver', description: 'Saved over $100', icon: DollarSign, earned: true },
+    { id: 2, title: 'Route Master', description: 'Used 10+ different routes', icon: MapPin, earned: true },
+    { id: 3, title: 'Frequent Traveler', description: 'Completed 25+ trips', icon: Target, earned: false },
+    { id: 4, title: 'Eco Warrior', description: 'Reduced CO2 by 50kg', icon: Award, earned: true },
+  ];
+
+  const tabs = [
+    { id: 'routes', label: 'Saved Routes', icon: MapPin },
+    { id: 'history', label: 'Trip History', icon: History },
+    { id: 'requests', label: 'My Requests', icon: AlertCircle },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ];
 
   // Function to fetch user data and routes
   const fetchUserData = async () => {
@@ -45,6 +108,9 @@ export default function Profile() {
           profileImage: profileData.profileImage || prev.profileImage
         }));
 
+        // Set default vehicle type from backend
+        setDefaultVehicleType(profileData.defaultVehicleType || 'Car');
+
         // Update localStorage with latest data
         localStorage.setItem('name', profileData.name);
         if (profileData.profileImage) {
@@ -52,13 +118,17 @@ export default function Profile() {
         }
       }
 
-      // Fetch routes
+      // Fetch all routes (for both saved routes and trip history)
       const routesResponse = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/api/users/routes?userId=${userId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setRoutes(routesResponse.data || []);
+      const allRoutes = routesResponse.data || [];
+      setRoutes(allRoutes);
+      setTripHistory(allRoutes);
+      setTotalTrips(allRoutes.length);
+      setSavedCount(allRoutes.filter(route => route.isSaved === true).length);
     } catch (error) {
       console.error('Error fetching data:', error);
       const errorMessage = error.response?.data?.message || error.message;
@@ -95,7 +165,6 @@ export default function Profile() {
       );
 
       toast.success('Route deleted successfully!');
-      // Refresh the routes data
       fetchUserData();
     } catch (error) {
       console.error('Error deleting route:', error);
@@ -111,7 +180,6 @@ export default function Profile() {
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Check file type
       if (!file.type.startsWith('image/')) {
         toast.error('Please upload an image file');
         return;
@@ -126,11 +194,9 @@ export default function Profile() {
           return;
         }
 
-        // Show loading toast
         const loadingToast = toast.loading('Processing image...');
         setImageLoading(true);
 
-        // Create an image element for resizing
         const img = new Image();
         const reader = new FileReader();
 
@@ -140,16 +206,13 @@ export default function Profile() {
 
         img.onload = async () => {
           try {
-            // Create canvas for resizing
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
 
-            // Maximum dimensions
             const MAX_WIDTH = 800;
             const MAX_HEIGHT = 800;
 
-            // Resize image while maintaining aspect ratio
             if (width > height) {
               if (width > MAX_WIDTH) {
                 height *= MAX_WIDTH / width;
@@ -165,14 +228,11 @@ export default function Profile() {
             canvas.width = width;
             canvas.height = height;
 
-            // Draw resized image to canvas
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            // Get resized image as base64
-            const resizedImage = canvas.toDataURL('image/jpeg', 0.7); // Reduce quality to 70%
+            const resizedImage = canvas.toDataURL('image/jpeg', 0.7);
 
-            // Upload to server
             const response = await axios.put(
               `${import.meta.env.VITE_API_BASE_URL}/api/users/profile?userId=${userId}`,
               { image: resizedImage },
@@ -244,112 +304,1008 @@ export default function Profile() {
     }
   };
 
+  // Update default vehicle type
+  const handleVehicleTypeUpdate = async (newVehicleType) => {
+    try {
+      const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('userId');
+      if (!token || !userId) {
+        toast.error('Please login again');
+        navigate('/auth');
+        return;
+      }
+
+      await axios.put(`${import.meta.env.VITE_API_BASE_URL}/api/users/profile?userId=${userId}`, 
+        { defaultVehicleType: newVehicleType },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setDefaultVehicleType(newVehicleType);
+      toast.success('Default vehicle type updated!');
+    } catch (error) {
+      console.error('Error updating vehicle type:', error);
+      toast.error('Failed to update vehicle type');
+    }
+  };
+
   const handleImageError = () => {
-    // If the image fails to load, fall back to default avatar
     setUser(prev => ({
       ...prev,
       profileImage: '/default-avatar.png'
     }));
   };
 
+  // Handle clear all routes
+  const handleClearAllRoutes = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('userId');
+      
+      if (!token || !userId) {
+        toast.error('Please login again');
+        navigate('/auth');
+        return;
+      }
+
+      // Delete all routes one by one
+      const deletePromises = routes.map(route => 
+        axios.delete(
+          `${import.meta.env.VITE_API_BASE_URL}/api/users/routes/${route._id}?userId=${userId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+      );
+
+      await Promise.all(deletePromises);
+      
+      setShowClearConfirm(false);
+      toast.success('All routes cleared successfully!');
+      fetchUserData();
+    } catch (error) {
+      console.error('Error clearing routes:', error);
+      toast.error('Failed to clear routes');
+      setShowClearConfirm(false);
+    }
+  };
+
+  // Handle delete account
+  const handleDeleteAccount = async () => {
+    if (!deletePassword.trim()) {
+      toast.error('Please enter your password to confirm');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('userId');
+      
+      if (!token || !userId) {
+        toast.error('Please login again');
+        navigate('/auth');
+        return;
+      }
+
+      // Here you would typically verify password and delete account
+      // For now, just showing the flow
+      toast.error('Account deletion feature not implemented yet');
+      setShowDeleteConfirm(false);
+      setDeletePassword('');
+      
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast.error('Failed to delete account');
+      setShowDeleteConfirm(false);
+      setDeletePassword('');
+    }
+  };
+
+  // Calculate stats from routes
+  const savedRoutes = routes.filter(route => route.isSaved === true);
+  const totalSaved = savedRoutes.reduce((sum, route) => sum + (route.price || 0), 0);
+  const totalSavedRoutes = savedRoutes.length;
+
+  // Handle admin request submission
+  const handleAdminRequest = async () => {
+    if (!adminRequestReason.trim()) {
+      toast.error('Please provide a reason for admin request');
+      return;
+    }
+
+    try {
+      // Simulate API call - replace with actual backend call
+      console.log('Admin request submitted:', {
+        userId: localStorage.getItem('userId'),
+        reason: adminRequestReason,
+        requestedAt: new Date()
+      });
+      
+      setAdminRequestStatus('pending');
+      setShowAdminRequest(false);
+      setAdminRequestReason('');
+      toast.success('Admin request submitted successfully! We will review it soon.');
+    } catch (error) {
+      console.error('Error submitting admin request:', error);
+      toast.error('Failed to submit admin request. Please try again.');
+    }
+  };
+
+  // Handle admin request status update (for demo purposes)
+  const handleAdminStatusUpdate = (status) => {
+    setAdminRequestStatus(status);
+    toast.success(`Admin request ${status}!`);
+  };
+
   return (
-    <div className="min-h-screen p-4 lg:p-8 bg-gray-50 dark:bg-black text-gray-900 dark:text-red-100">
-      <div className="max-w-4xl mx-auto">
-        {/* Loading indicator */}
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <p className="text-xl dark:text-white">Loading profile...</p>
-        </div>
-        ) : (
-          <div className="bg-white dark:bg-black dark:border dark:border-red-900 rounded-2xl shadow-xl dark:shadow-red-900 p-6 mb-8">
-            {/* Profile Header */}
-            <div className="flex items-center space-x-6 mb-8">
-            <div className="relative">
-                <img
-                  src={user.profileImage}
-                  alt="Profile"
-                  className="w-24 h-24 object-cover rounded-full border-4 border-red-500 shadow-lg dark:border-red-700"
-                  onError={handleImageError}
-                />
-                {imageLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-700"></div>
-                  </div>
-                )}
-              </div>
-              <div className="flex-1">
-                {!isEditing ? (
-                  <div className="flex items-center space-x-3">
-                    <h2 className="text-3xl font-bold dark:text-white">{user.name}</h2>
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-red-900 transition"
-                    >
-                      <svg className="w-5 h-5 text-gray-500 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                    </button>
-                  </div>
-                ) : (
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-100 dark:from-black dark:via-gray-900 dark:to-black">
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-red-900/95 to-red-800/90 dark:from-black dark:to-red-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center"
+          >
+            <motion.div 
+              className="relative w-32 h-32 mx-auto mb-6"
+              whileHover={{ scale: 1.05, rotate: 5 }}
+            >
+              <img
+                src={user.profileImage}
+                alt="Profile"
+                className="w-32 h-32 object-cover rounded-full border-4 border-white/20 shadow-xl"
+                onError={handleImageError}
+              />
+              {imageLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="hidden"
+                id="profileImageInput"
+              />
+              <label
+                htmlFor="profileImageInput"
+                className="absolute bottom-0 right-0 cursor-pointer p-2 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-lg transition-all"
+              >
+                <Camera className="w-4 h-4" />
+              </label>
+            </motion.div>
+            
+            <div className="flex items-center justify-center space-x-3 mb-2">
+              {!isEditing ? (
+                <>
+                  <h1 className="text-4xl font-bold text-white">{user.name}</h1>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="p-2 rounded-full hover:bg-white/10 transition"
+                  >
+                    <Edit3 className="w-5 h-5 text-white" />
+                  </button>
+                </>
+              ) : (
+                <div className="flex items-center space-x-2">
                   <input
                     type="text"
                     value={user.name}
                     onChange={(e) => setUser({ ...user, name: e.target.value })}
-                    onBlur={handleNameUpdate}
-                    onKeyPress={(e) => { if (e.key === 'Enter') e.target.blur(); }}
-                    className="text-3xl font-bold bg-transparent border-b border-gray-300 dark:border-red-700 focus:outline-none focus:border-red-500 dark:focus:border-red-400 dark:text-white"
+                    className="text-4xl font-bold bg-transparent border-b border-white/30 focus:outline-none focus:border-white text-white text-center"
                   />
-                )}
-                <p className="text-gray-600 dark:text-white">{user.email}</p>
-              </div>
-              {/* Profile image upload input */}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                className="hidden"
-                id="profileImageInput"
-                />
-              <label
-                htmlFor="profileImageInput"
-                className="cursor-pointer p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-red-900 dark:hover:bg-red-800 transition"
-              >
-                <svg className="w-6 h-6 text-gray-600 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.894-1.789A2 2 0 0113.71 3h1.58a2 2 0 011.664.89l.894 1.789A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </label>
-            </div>
-
-            {/* Saved Routes Section */}
-            <div>
-              <h3 className="text-2xl font-bold mb-4 dark:text-white">Saved Routes</h3>
-              {routes.length === 0 ? (
-                <p className="text-gray-600 dark:text-white">No saved routes yet.</p>
-          ) : (
-                <ul className="space-y-4">
-              {routes.map((route) => (
-                    <li key={route._id} className="bg-gray-100 dark:bg-red-900 rounded-lg p-4 shadow flex justify-between items-center">
-                      <div>
-                        <p className="font-semibold text-red-700 dark:text-white">{route.source} to {route.destination}</p>
-                        <p className="text-sm text-gray-600 dark:text-white">Vehicle: {route.vehicleType}</p>
-                        <p className="text-lg font-bold text-green-700 dark:text-white">₹{route.price?.toFixed(2) ?? 'N/A'}</p>
-                  </div>
                   <button
-                    onClick={() => handleDeleteRoute(route._id)}
-                        className="p-2 rounded-full text-red-600 hover:bg-red-100 dark:text-white dark:hover:bg-red-800 transition"
-                        aria-label="Delete route"
+                    onClick={handleNameUpdate}
+                    className="p-2 rounded-full hover:bg-white/10 transition text-green-400"
                   >
-                        <Trash2 className="w-5 h-5" />
+                    <Check className="w-5 h-5" />
                   </button>
-                    </li>
-              ))}
-                </ul>
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="p-2 rounded-full hover:bg-white/10 transition text-red-400"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               )}
             </div>
+            
+                                     <p className="text-white/80 text-lg mb-4">{user.email}</p>
+            
+            {/* Admin Request Section */}
+            <div className="mb-6">
+              {adminRequestStatus === 'none' && (
+                <motion.button
+                  onClick={() => setShowAdminRequest(true)}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-6 py-3 rounded-lg transition-all backdrop-blur-sm border border-white/20"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  🛡️ Become Admin
+                </motion.button>
+              )}
+              
+              {adminRequestStatus === 'pending' && (
+                <div className="bg-yellow-500 bg-opacity-20 text-yellow-100 px-6 py-3 rounded-lg backdrop-blur-sm border border-yellow-300/20 flex items-center justify-center space-x-2">
+                  <span>⏳</span>
+                  <span>Admin Request Pending</span>
+                  <div className="flex space-x-2 ml-4">
+                    <button
+                      onClick={() => handleAdminStatusUpdate('accepted')}
+                      className="text-green-400 hover:text-green-300 underline text-sm"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => handleAdminStatusUpdate('rejected')}
+                      className="text-red-400 hover:text-red-300 underline text-sm"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {adminRequestStatus === 'accepted' && (
+                <div className="bg-green-500 bg-opacity-20 text-green-100 px-6 py-3 rounded-lg backdrop-blur-sm border border-green-300/20 flex items-center justify-center space-x-2">
+                  <span>✅</span>
+                  <span>Admin Access Granted</span>
+                </div>
+              )}
+              
+              {adminRequestStatus === 'rejected' && (
+                <div className="bg-red-500 bg-opacity-20 text-red-100 px-6 py-3 rounded-lg backdrop-blur-sm border border-red-300/20 flex items-center justify-center space-x-2">
+                  <span>❌</span>
+                  <span>Admin Request Rejected</span>
+                  <button
+                    onClick={() => setAdminRequestStatus('none')}
+                    className="text-white hover:text-gray-200 underline text-sm ml-4"
+                  >
+                    Request Again
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+            
+            <p className="text-white/70 text-lg mb-6">Track your savings, manage routes, and optimize your travels</p>
+          </motion.div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-10">
+        {/* Loading indicator */}
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+        </div>
+        ) : (
+          <>
+                         {/* Enhanced Stats Cards */}
+             <motion.div
+               initial={{ opacity: 0, y: 20 }}
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ delay: 0.2 }}
+               className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"
+             >
+               <motion.div 
+                 className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6 text-center"
+                 whileHover={{ scale: 1.02, y: -2 }}
+               >
+                 <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mx-auto mb-4">
+                   <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                 </div>
+                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalSavedRoutes}</h3>
+                 <p className="text-gray-600 dark:text-gray-400">Routes Saved</p>
+                 <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">Ready to use</div>
+               </motion.div>
+ 
+               <motion.div 
+                 className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6 text-center"
+                 whileHover={{ scale: 1.02, y: -2 }}
+               >
+                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center mx-auto mb-4">
+                   <History className="h-6 w-6 text-green-600 dark:text-green-400" />
+                 </div>
+                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalTrips}</h3>
+                 <p className="text-gray-600 dark:text-gray-400">Total Trips</p>
+                 <div className="text-xs text-green-600 dark:text-green-400 mt-1">All calculated</div>
+               </motion.div>
+             </motion.div>
+
+            {/* Enhanced Tab Navigation */}
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg mb-8">
+              <div className="border-b border-gray-200 dark:border-gray-700">
+                <nav className="flex space-x-8 px-6 overflow-x-auto">
+                  {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`py-4 px-2 border-b-2 font-medium text-sm transition-all whitespace-nowrap ${
+                          activeTab === tab.id
+                            ? 'border-red-500 text-red-600 dark:text-red-400'
+                            : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <Icon className="h-5 w-5" />
+                          <span>{tab.label}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+
+                             <div className="p-6">
+                 {/* Enhanced Saved Routes Tab */}
+                {activeTab === 'routes' && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="space-y-6"
+                  >
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Your Saved Routes</h3>
+                      <motion.button 
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => navigate('/calculator')}
+                      >
+                        <Plus className="h-5 w-5" />
+                        <span>Add Route</span>
+                      </motion.button>
+                    </div>
+
+                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                       {savedRoutes.map((route) => (
+                        <motion.div 
+                          key={route._id} 
+                          className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-all"
+                          whileHover={{ scale: 1.02, y: -2 }}
+                        >
+                          <div className="flex justify-between items-start mb-4">
+                            <div className="flex items-center space-x-2">
+                              <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                {route.source} → {route.destination}
+                              </h4>
+                            </div>
+                            <span className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 px-2 py-1 rounded-full text-xs font-medium">
+                              {route.vehicleType}
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-2 mb-4">
+                            <p className="text-gray-600 dark:text-gray-400 flex items-center">
+                              <MapPin className="h-4 w-4 inline mr-2" />
+                              Route optimized for cost efficiency
+                            </p>
+                          </div>
+
+                          <div className="flex justify-between items-center pt-4 border-t border-gray-100 dark:border-gray-700">
+                            <div>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">Toll Cost</p>
+                              <p className="text-xl font-bold text-green-600 dark:text-green-400">₹{route.price?.toFixed(2) ?? 'N/A'}</p>
+                            </div>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => {
+                                  localStorage.setItem('routeToUse', JSON.stringify({
+                                    source: route.source,
+                                    destination: route.destination,
+                                    vehicleType: route.vehicleType
+                                  }));
+                                  navigate('/calculator');
+                                }}
+                                className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition"
+                                title="Use this route"
+                              >
+                                Use Route
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRoute(route._id)}
+                                className="p-2 rounded-full text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/30 transition"
+                                aria-label="Delete route"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                                         {savedRoutes.length === 0 && (
+                      <div className="text-center py-12">
+                        <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No saved routes yet</h3>
+                        <p className="text-gray-600 dark:text-gray-400 mb-4">Start by calculating your first route</p>
+                        <motion.button 
+                          className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => navigate('/calculator')}
+                        >
+                          Calculate Route
+                        </motion.button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                                                  {/* Trip History Tab */}
+                 {activeTab === 'history' && (
+                   <motion.div
+                     initial={{ opacity: 0, x: 20 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     className="space-y-6"
+                   >
+                     <div className="flex justify-between items-center">
+                       <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Trip History</h3>
+                       <div className="flex space-x-2">
+                         <select className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                           <option>All Time</option>
+                           <option>This Month</option>
+                           <option>Last 3 Months</option>
+                         </select>
+                         <select 
+                           value={filterVehicleType}
+                           onChange={(e) => setFilterVehicleType(e.target.value)}
+                           className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                         >
+                           <option value="all">All Vehicles</option>
+                           <option value="Car">Car</option>
+                           <option value="Light Commercial Vehicle">Light Commercial Vehicle</option>
+                           <option value="Bus">Bus</option>
+                           <option value="3 Axle Truck">3 Axle Truck</option>
+                           <option value="4 Axle Truck">4 Axle Truck</option>
+                           <option value="Heavy Commercial Vehicle">Heavy Commercial Vehicle</option>
+                           <option value="5 or More Axle Truck">5 or More Axle Truck</option>
+                         </select>
+                       </div>
+                     </div>
+                     
+                     {tripHistory.length === 0 ? (
+                       <div className="text-center py-12">
+                         <History className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No trip history yet</h3>
+                         <p className="text-gray-600 dark:text-gray-400 mb-4">Start by calculating and saving your first route</p>
+                         <motion.button 
+                           className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors"
+                           whileHover={{ scale: 1.05 }}
+                           whileTap={{ scale: 0.95 }}
+                           onClick={() => navigate('/calculator')}
+                         >
+                           Calculate Route
+                         </motion.button>
+                       </div>
+                     ) : (
+                       <>
+                         {tripHistory.filter(route => filterVehicleType === 'all' || route.vehicleType === filterVehicleType).length === 0 ? (
+                           <div className="text-center py-12">
+                             <History className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No trips found</h3>
+                             <p className="text-gray-600 dark:text-gray-400 mb-4">Try changing your filter criteria</p>
+                             <motion.button 
+                               className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                               whileHover={{ scale: 1.05 }}
+                               whileTap={{ scale: 0.95 }}
+                               onClick={() => setFilterVehicleType('all')}
+                             >
+                               Clear Filters
+                             </motion.button>
+                           </div>
+                         ) : (
+                           <div className="overflow-x-auto">
+                             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                           <thead className="bg-gray-50 dark:bg-gray-800">
+                             <tr>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Route
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Vehicle Type
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Toll Cost
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Date Saved
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Status
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Actions
+                               </th>
+                             </tr>
+                           </thead>
+                           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                             {tripHistory
+                               .filter(route => 
+                                 filterVehicleType === 'all' || route.vehicleType === filterVehicleType
+                               )
+                               .map((route, index) => (
+                               <motion.tr 
+                                 key={route._id} 
+                                 className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                 initial={{ opacity: 0, y: 20 }}
+                                 animate={{ opacity: 1, y: 0 }}
+                                 transition={{ delay: index * 0.1 }}
+                               >
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                     {route.source} → {route.destination}
+                                   </div>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400">
+                                     {route.vehicleType}
+                                   </span>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                   ₹{route.price?.toFixed(2) ?? 'N/A'}
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                   {new Date().toLocaleDateString('en-IN')}
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400">
+                                     {route.isSaved ? 'Saved' : 'Calculated'}
+                                   </span>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                   <button
+                                     onClick={() => {
+                                       // Save route data to localStorage for Calculator to pick up
+                                       localStorage.setItem('routeToUse', JSON.stringify({
+                                         source: route.source,
+                                         destination: route.destination,
+                                         vehicleType: route.vehicleType
+                                       }));
+                                       navigate('/calculator');
+                                     }}
+                                     className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 mr-3"
+                                   >
+                                     Use Route
+                                   </button>
+                                   <button
+                                     onClick={() => handleDeleteRoute(route._id)}
+                                     className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                                   >
+                                     Delete
+                                   </button>
+                                 </td>
+                               </motion.tr>
+                             ))}
+                                                          </tbody>
+                           </table>
+                                                    </div>
+                         )}
+                       </>
+                     )}
+                   </motion.div>
+                 )}
+
+                 {/* Requests Tab */}
+                 {activeTab === 'requests' && (
+                   <motion.div
+                     initial={{ opacity: 0, x: 20 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     className="space-y-6"
+                   >
+                     <div className="flex justify-between items-center">
+                       <h3 className="text-xl font-semibold text-gray-900 dark:text-white">My Requests</h3>
+                     </div>
+                     
+                     {requests.length === 0 ? (
+                       <div className="text-center py-12">
+                         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No requests yet</h3>
+                         <p className="text-gray-600 dark:text-gray-400 mb-4">Start by reporting a new issue</p>
+                         <motion.button 
+                           className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors"
+                           whileHover={{ scale: 1.05 }}
+                           whileTap={{ scale: 0.95 }}
+                           onClick={() => navigate('/report-issue')}
+                         >
+                           Report Issue
+                         </motion.button>
+                       </div>
+                     ) : (
+                       <div className="overflow-x-auto">
+                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                           <thead className="bg-gray-50 dark:bg-gray-800">
+                             <tr>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Issue Type
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Source
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Destination
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Description
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Expected Price
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Calculated Price
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Status
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Date Reported
+                               </th>
+                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                 Actions
+                               </th>
+                             </tr>
+                           </thead>
+                           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                             {requests.map((request, index) => (
+                               <motion.tr 
+                                 key={request._id} 
+                                 className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                 initial={{ opacity: 0, y: 20 }}
+                                 animate={{ opacity: 1, y: 0 }}
+                                 transition={{ delay: index * 0.1 }}
+                               >
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                     {request.issueType}
+                                   </div>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                     {request.source}
+                                   </div>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                     {request.destination}
+                                   </div>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                     {request.description}
+                                   </div>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                     ₹{request.expectedPrice}
+                                   </div>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                     ₹{request.calculatedPrice}
+                                   </div>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                     {request.status}
+                                   </div>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                     {new Date(request.createdAt).toLocaleDateString('en-IN')}
+                                   </div>
+                                 </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                                   <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                     <button
+                                       onClick={() => navigate('/view-issue', { state: request })}
+                                       className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 mr-3"
+                                     >
+                                       View
+                                     </button>
+                                     <button
+                                       onClick={() => handleDeleteRoute(request._id)}
+                                       className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                                     >
+                                       Delete
+                                     </button>
+                                   </div>
+                                 </td>
+                               </motion.tr>
+                             ))}
+                           </tbody>
+                         </table>
+                       </div>
+                     )}
+                   </motion.div>
+                 )}
+
+                 {/* Settings Tab */}
+                 {activeTab === 'settings' && (
+                   <motion.div
+                     initial={{ opacity: 0, x: 20 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     className="space-y-6"
+                   >
+                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Settings</h3>
+                     
+                     <div className="space-y-6">
+                       {/* Profile Settings */}
+                       <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6">
+                         <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Profile Settings</h4>
+                         <div className="space-y-4">
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div>
+                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                 Display Name
+                               </label>
+                               <input
+                                 type="text"
+                                 value={user.name}
+                                 onChange={(e) => setUser({ ...user, name: e.target.value })}
+                                 className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                               />
+                             </div>
+                             <div>
+                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                 Email Address
+                               </label>
+                               <input
+                                 type="email"
+                                 value={user.email}
+                                 disabled
+                                 className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400"
+                               />
+                             </div>
+                           </div>
+                           <div className="flex space-x-4">
+                             <motion.button
+                               whileHover={{ scale: 1.02 }}
+                               whileTap={{ scale: 0.98 }}
+                               onClick={handleNameUpdate}
+                               className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                             >
+                               Update Profile
+                             </motion.button>
+                             <motion.button
+                               whileHover={{ scale: 1.02 }}
+                               whileTap={{ scale: 0.98 }}
+                               onClick={() => navigate('/forget-password')}
+                               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                             >
+                               Reset Password
+                             </motion.button>
+                           </div>
+                         </div>
+                       </div>
+
+                       {/* App Preferences */}
+                       <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6">
+                         <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Preferences</h4>
+                         <div className="space-y-4">
+                           <div className="flex items-center justify-between">
+                             <div>
+                               <p className="font-medium text-gray-900 dark:text-white">Default Vehicle Type</p>
+                               <p className="text-sm text-gray-600 dark:text-gray-400">Set your preferred vehicle for calculations</p>
+                             </div>
+                             <select 
+                               value={defaultVehicleType}
+                               onChange={(e) => handleVehicleTypeUpdate(e.target.value)}
+                               className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                             >
+                               <option value="Car">Car</option>
+                               <option value="Light Commercial Vehicle">Light Commercial Vehicle</option>
+                               <option value="Bus">Bus</option>
+                               <option value="3 Axle Truck">3 Axle Truck</option>
+                               <option value="4 Axle Truck">4 Axle Truck</option>
+                               <option value="Heavy Commercial Vehicle">Heavy Commercial Vehicle</option>
+                               <option value="5 or More Axle Truck">5 or More Axle Truck</option>
+                             </select>
+                           </div>
+                           
+
+
+                           <div className="flex items-center justify-between">
+                             <div>
+                               <p className="font-medium text-gray-900 dark:text-white">Auto-save Routes</p>
+                               <p className="text-sm text-gray-600 dark:text-gray-400">Automatically save calculated routes</p>
+                             </div>
+                             <label className="relative inline-flex items-center cursor-pointer">
+                               <input type="checkbox" className="sr-only peer" />
+                               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 dark:peer-focus:ring-red-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-red-600"></div>
+                             </label>
+                           </div>
+                         </div>
+                       </div>
+
+
+
+                       {/* Danger Zone */}
+                       <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-6">
+                         <h4 className="text-lg font-medium text-red-900 dark:text-red-300 mb-4">Danger Zone</h4>
+                         <p className="text-sm text-red-700 dark:text-red-400 mb-4">
+                           These actions cannot be undone. Please be careful.
+                         </p>
+                         <div className="space-y-2">
+                           <motion.button 
+                             whileHover={{ scale: 1.02 }}
+                             whileTap={{ scale: 0.98 }}
+                             onClick={() => setShowClearConfirm(true)}
+                             className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors mr-2"
+                           >
+                             Clear All Route Data
+                           </motion.button>
+                           <motion.button 
+                             whileHover={{ scale: 1.02 }}
+                             whileTap={{ scale: 0.98 }}
+                             onClick={() => setShowDeleteConfirm(true)}
+                             className="bg-red-700 text-white px-4 py-2 rounded-lg hover:bg-red-800 transition-colors"
+                           >
+                             Delete Account
+                           </motion.button>
+                         </div>
+                       </div>
+                     </div>
+                   </motion.div>
+                 )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Clear All Routes Confirmation Modal */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4"
+            >
+              <div className="text-center">
+                <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Clear All Route Data?
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  Are you sure you want to delete all your saved routes? This action cannot be undone.
+                </p>
+                <div className="flex space-x-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowClearConfirm(false)}
+                    className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleClearAllRoutes}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    Yes, Clear All
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Delete Account Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4"
+            >
+              <div className="text-center">
+                <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <User className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Delete Account?
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  This will permanently delete your account and all associated data. This action cannot be undone.
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Enter your password to confirm:
+                  </label>
+                  <input
+                    type="password"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    placeholder="Enter password"
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      setDeletePassword('');
+                    }}
+                    className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleDeleteAccount}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    Delete Account
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Admin Request Modal */}
+        {showAdminRequest && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4"
+            >
+              <div className="text-center">
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <User className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Request Admin Access
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Please provide a reason for requesting admin privileges. This will be reviewed by our team.
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Reason for admin request:
+                  </label>
+                  <textarea
+                    value={adminRequestReason}
+                    onChange={(e) => setAdminRequestReason(e.target.value)}
+                    placeholder="Explain why you need admin access..."
+                    rows={4}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setShowAdminRequest(false);
+                      setAdminRequestReason('');
+                    }}
+                    className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleAdminRequest}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Submit Request
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </div>
     </div>
   );
-} 
+}

@@ -26,11 +26,15 @@ const Calculator = () => {
   const [source, setSource] = useState(() => localStorage.getItem('source') || '');
   const [destination, setDestination] = useState(() => localStorage.getItem('destination') || '');
   const [showResults, setShowResults] = useState(() => localStorage.getItem('showResults') === 'true');
-  const [vehicleType, setVehicleType] = useState(() => localStorage.getItem('vehicleType') || 'car');
+  const [vehicleType, setVehicleType] = useState(() => 
+    localStorage.getItem('vehicleType') || 'Car'
+  );
   const [routePreference, setRoutePreference] = useState('best'); // example
   const [isCalculating, setIsCalculating] = useState(false);
   const [routes, setRoutes] = useState([]); // routes from API
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(-1);
+  const [isRouteSaved, setIsRouteSaved] = useState(false); // Track if current route is saved
+  const [isUsingRoute, setIsUsingRoute] = useState(false); // Track if currently using a route from history
 
   const { routeData,setRouteData, setIsLoading, isLoading, setSelectedRouteIndex: contextSetSelectedRouteIndex } = useRoute();
 
@@ -40,16 +44,60 @@ const Calculator = () => {
   usePlacesAutocomplete(sourceRef, setSource);
   usePlacesAutocomplete(destinationRef, setDestination);
   
-  // Save form data to localStorage when changed
+  // Save form data to localStorage when changed (but don't save vehicle type if using a route)
   useEffect(() => {
     localStorage.setItem('source', source);
     localStorage.setItem('destination', destination);
-    localStorage.setItem('vehicleType', vehicleType);
+    // Only save vehicle type to localStorage if not using a route from history
+    if (!isUsingRoute) {
+      localStorage.setItem('vehicleType', vehicleType);
+    }
     localStorage.setItem('showResults', showResults.toString());
-  }, [source, destination, vehicleType, showResults]);
+  }, [source, destination, vehicleType, showResults, isUsingRoute]);
 
-  // Load saved route data on mount
+  // Load saved route data and user preferences on mount
   useEffect(() => {
+    // Check if coming from "Use Route" button
+    const routeToUse = localStorage.getItem('routeToUse');
+    if (routeToUse) {
+      const { source: routeSource, destination: routeDestination, vehicleType: routeVehicleType } = JSON.parse(routeToUse);
+      setIsUsingRoute(true); // Flag that we're using a route
+      setSource(routeSource);
+      setDestination(routeDestination);
+      setVehicleType(routeVehicleType);
+      
+      // Clear any existing results so user starts fresh
+      setShowResults(false);
+      setRoutes([]);
+      setSelectedRouteIndex(-1);
+      
+      localStorage.removeItem('routeToUse'); // Clean up
+      toast.success('📍 Route loaded! Click Calculate to find toll details.');
+    } else {
+      // Fetch user's default vehicle type if not using a route
+      const fetchDefaultVehicleType = async () => {
+        const token = localStorage.getItem('token');
+        const userId = localStorage.getItem('userId');
+        
+        if (token && userId) {
+          try {
+            const response = await axios.get(
+              `${import.meta.env.VITE_API_BASE_URL}/api/users/profile?userId=${userId}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            if (response.data.user.defaultVehicleType) {
+              setVehicleType(response.data.user.defaultVehicleType);
+            }
+          } catch (error) {
+            console.error('Error fetching default vehicle type:', error);
+          }
+        }
+      };
+      
+      fetchDefaultVehicleType();
+    }
+
     const savedRouteData = localStorage.getItem('routeData');
     if (savedRouteData) {
       const data = JSON.parse(savedRouteData);
@@ -90,6 +138,9 @@ const Calculator = () => {
       localStorage.setItem('showResults', 'true');
 
       setRouteData(response);
+      
+      // Reset the route usage flag after calculation
+      setIsUsingRoute(false);
 
       // Optionally save to user history if logged in
       const token = localStorage.getItem('token');
@@ -99,16 +150,20 @@ const Calculator = () => {
           const payload = {
             source,
             destination,
+            vehicleType,
             price: selectedRoute.totalToll || 0,
-          userId,
+            userId,
           };
 
-        if (payload.source && payload.destination && payload.userId && payload.price !== undefined) {
-          await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/users/routes`, payload, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          toast.success('Route saved to history!');
-        }
+                 if (payload.source && payload.destination && payload.userId && payload.price !== undefined) {
+           // Add flag to mark as trip history (automatic save)
+           payload.isSaved = false; // This goes to trip history
+           
+           await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/users/routes`, payload, {
+             headers: { Authorization: `Bearer ${token}` },
+           });
+           // Don't show toast for automatic saving
+         }
       }
     } catch (error) {
       console.error(error);
@@ -124,9 +179,115 @@ const Calculator = () => {
     setSelectedRouteIndex(index);
   };
 
-  // Dummy placeholders for share and save route buttons
-  const saveRoute = () => {
-    toast.info('Save route functionality not implemented yet.');
+  // Check if current route combination is already saved
+  const checkIfRouteSaved = async () => {
+    if (!source || !destination) return;
+    
+    const token = localStorage.getItem('token');
+    const userId = localStorage.getItem('userId');
+    
+    if (!token || !userId) return;
+    
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/api/users/routes?userId=${userId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      const savedRoute = response.data.find(route => 
+        route.source === source && 
+        route.destination === destination && 
+        route.isSaved === true
+      );
+      
+      setIsRouteSaved(!!savedRoute);
+    } catch (error) {
+      console.error('Error checking saved routes:', error);
+    }
+  };
+
+  // Check saved status when source/destination changes
+  useEffect(() => {
+    checkIfRouteSaved();
+  }, [source, destination]);
+
+  // Save/Unsave route toggle functionality
+  const toggleSaveRoute = async () => {
+    if (!source || !destination) {
+      toast.error('No route data to save');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    const userId = localStorage.getItem('userId');
+    
+    if (!token || !userId) {
+      toast.error('Please login to save routes');
+      return;
+    }
+
+    try {
+      if (isRouteSaved) {
+        // Unsave the route - find and delete the saved route
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL}/api/users/routes?userId=${userId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        const savedRoute = response.data.find(route => 
+          route.source === source && 
+          route.destination === destination && 
+          route.isSaved === true
+        );
+        
+        if (savedRoute) {
+          await axios.delete(
+            `${import.meta.env.VITE_API_BASE_URL}/api/users/routes/${savedRoute._id}?userId=${userId}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          setIsRouteSaved(false);
+          toast.success('Route unsaved successfully!');
+        }
+      } else {
+        // Save the route
+        if (routes.length === 0) {
+          toast.error('Please calculate route first');
+          return;
+        }
+        
+        const routeIndex = selectedRouteIndex >= 0 ? selectedRouteIndex : 0;
+        const selectedRoute = routes[routeIndex];
+        
+        const payload = {
+          source,
+          destination,
+          vehicleType,
+          price: selectedRoute?.totalToll || selectedRoute?.toll || 0,
+          userId,
+          isSaved: true
+        };
+
+        await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/api/users/routes`, 
+          payload, 
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        
+        setIsRouteSaved(true);
+        toast.success('Route saved successfully!');
+      }
+    } catch (error) {
+      console.error('Error saving/unsaving route:', error);
+      if (error.response?.status === 401) {
+        toast.error('Please login again');
+      } else if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Failed to save/unsave route');
+      }
+    }
   };
   const shareRoute = () => {
     toast.info('Share route functionality not implemented yet.');
@@ -197,7 +358,10 @@ return (
 
           <select
             value={vehicleType}
-            onChange={(e) => setVehicleType(e.target.value)}
+            onChange={(e) => {
+              setVehicleType(e.target.value);
+              setIsUsingRoute(false); // Reset flag when user manually changes vehicle type
+            }}
               className="px-4 py-3 border border-gray-200 dark:border-red-900 dark:bg-black dark:text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 max-w-xs flex-1"
           >
               <option value="Car">Car</option>
@@ -257,11 +421,15 @@ return (
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={saveRoute}
-                    className="p-2 text-gray-500 hover:text-red-600 dark:text-white dark:hover:text-red-400"
-                    title="Save route"
+                    onClick={toggleSaveRoute}
+                    className={`p-2 transition-colors ${
+                      isRouteSaved 
+                        ? 'text-red-600 dark:text-red-400' 
+                        : 'text-gray-500 hover:text-red-600 dark:text-white dark:hover:text-red-400'
+                    }`}
+                    title={isRouteSaved ? "Unsave route" : "Save route"}
                   >
-                    <Bookmark className="w-5 h-5" />
+                    <Bookmark className={`w-5 h-5 ${isRouteSaved ? 'fill-current' : ''}`} />
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.1 }}

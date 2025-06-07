@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String }, // Not required for Google users
   googleId: { type: String }, // For Google users
   profileImage: { type: String, default: '' }, // URL for the profile image
+  defaultVehicleType: { type: String, default: 'Car' }, // User's preferred vehicle type
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 // Save a new route
 const saveRoute = async (req, res) => {
   try {
-    const { source, destination, price, userId } = req.body;
+    const { source, destination, price, userId, vehicleType, isSaved } = req.body;
     if (!source || !destination || price === undefined || price === null || !userId) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
@@ -14,7 +14,9 @@ const saveRoute = async (req, res) => {
       user: userId,
       source,
       destination,
-      price
+      price,
+      vehicleType: vehicleType || 'Car',
+      isSaved: isSaved || false
     });
     res.status(201).json(route);
   } catch (error) {
@@ -61,7 +63,7 @@ const deleteRoute = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { userId } = req.query;
-    const { name, image } = req.body;
+    const { name, image, defaultVehicleType } = req.body;
 
     if (!userId) {
       return res.status(400).json({ message: 'User ID is required' });
@@ -75,6 +77,11 @@ const updateProfile = async (req, res) => {
     // Update name if provided
     if (name) {
       user.name = name;
+    }
+
+    // Update default vehicle type if provided
+    if (defaultVehicleType) {
+      user.defaultVehicleType = defaultVehicleType;
     }
 
     // Upload image to Cloudinary if provided
@@ -105,7 +112,8 @@ const updateProfile = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        profileImage: user.profileImage
+        profileImage: user.profileImage,
+        defaultVehicleType: user.defaultVehicleType
       } 
     });
   } catch (error) {
@@ -139,7 +147,8 @@ const getProfile = async (req, res) => {
         _id: user._id.toString(),
         name: user.name,
         email: user.email,
-        profileImage: user.profileImage || ''
+        profileImage: user.profileImage || '',
+        defaultVehicleType: user.defaultVehicleType || 'Car'
       }
     });
   } catch (error) {
