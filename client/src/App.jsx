@@ -12,7 +12,7 @@ import PrivateRoute from './components/PrivateRoute';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { DarkModeProvider } from './context/DarkModeContext';
-import API from './pages/API';
+import API from './pages/Api';
 
 function App() {
   return (
